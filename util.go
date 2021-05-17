@@ -15,8 +15,8 @@ import(
 	"os"
 	"strconv"
 )
-
-//rewrite
+//TOTAL METHODS: 7
+//hashcode
 func createDigest(request RequestMsg) []byte{
 	bmsg, err := json.Marshal(request)
 	if err != nil{
@@ -49,6 +49,25 @@ func (n *Node) signMessage(data []byte, keyBytes []byte) ([]byte, error){
 	return signature, err
 }
 
+//verify signature using a public key
+func (n *Node) verifySignature(data, sig, keyBytes []byte) bool{
+	block, _ := pem.Decode(keyBytes)
+	if block == nil{
+		panic(errors.New("public key error"))
+	}
+	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil{
+		panic(err)
+	}
+
+	hashed := sha256.Sum256(data)
+	err = rsa.VerifyPKCS1v15(pubKey.(*rsa.PublicKey), crypto.SHA256, hashed[:], sig)
+	if err != nil{
+		panic(err)
+	}
+	return true
+}
+
 func send(data []byte, addr string){
 	conn, err := net.Dial("tcp", addr)
 	if err != nil{
@@ -78,27 +97,8 @@ func verifyDigest(msg interface{}, digest string) bool{
 }
 */
 
-//verify signature using a public key
-func (n *Node) verifySignature(data, sig, keyBytes []byte) bool{
-	block, _ := pem.Decode(keyBytes)
-	if block == nil{
-		panic(errors.New("public key error"))
-	}
-	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil{
-		panic(err)
-	}
-
-	hashed := sha256.Sum256(data)
-	err = rsa.VerifyPKCS1v15(pubKey.(*rsa.PublicKey), crypto.SHA256, hashed[:], sig)
-	if err != nil{
-		panic(err)
-	}
-	return true
-}
-
-
-func genRSAkeys(nodes int){
+//generate keys beforehand 
+func genKeys(nodes int){
 	if !isExist("./Keys"){
 		fmt.Println("creating public and private keys...")
 		err := os.Mkdir("Keys", 0644)
@@ -115,8 +115,9 @@ func genRSAkeys(nodes int){
 				}
 			}
 
+			
+			pub, priv := getPair()
 			//create public keys
-			pub, priv := getKeyPair()
 			pubFileName := "Keys/N" + strconv.Itoa(i) + "/N" + strconv.Itoa(i) + "_RSA_PUB"
 			pubFile, err := os.OpenFile(pubFileName, os.O_RDWR|os.O_CREATE, 0644)
 			if err != nil{
@@ -125,6 +126,7 @@ func genRSAkeys(nodes int){
 			defer pubFile.Close()
 			pubFile.Write(pub)
 
+			//create private keys
 			privFileName := "Keys/N" + strconv.Itoa(i) + "/N" + strconv.Itoa(i) + "_RSA_PRIV"
 			privFile, err := os.OpenFile(privFileName, os.O_RDWR|os.O_CREATE, 0644)
 			if err != nil{
@@ -137,8 +139,8 @@ func genRSAkeys(nodes int){
 	}
 }
 
-
-func getKeyPair() (pubKey, privKey []byte){
+//sub-method from genRSAKeys
+func getPair() (pubKey, privKey []byte){
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil{
@@ -163,6 +165,7 @@ func getKeyPair() (pubKey, privKey []byte){
 	return
 }
 
+//search for filepath and return a bool
 func isExist(path string) bool{
 	_, err := os.Stat(path)
 	if err != nil{

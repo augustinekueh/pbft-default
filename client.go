@@ -79,6 +79,7 @@ func (c *Client) sendRequest(){
 	r.Timestamp = int(time.Now().Unix())
 	r.ClientID = c.clientID
 	r.CMessage.Request = req
+	r.CAddr = c.addr
 	//r.CMessage.Digest = hex.EncodeToString(createDigest(req))
 
 	rp, err := json.Marshal(r)
@@ -111,10 +112,11 @@ func (c *Client) sendRequest(){
 		fmt.Printf("error happened: %d", err)
 		return
 	}
-	//packet := mergeMsg(Request, rp, sig)
+
+	packet := mergeMsg(Request, rp)
 	//logBroadcastMsg(hRequest, reqmsg)
-	//primaryNode := findPrimary()
-	//send(packet, primaryNode)
+	primaryNode := findPrimaryN()
+	send(packet, primaryNode)
 	c.message = r
 }
 
@@ -151,9 +153,6 @@ func (c *Client) getPrivKey(clientID string) []byte {
 	return key
 }
 
-
-func findPrimary() string{
-	prim := "haha"
-
-	return prim
+func findPrimaryN() string{
+	return nodeTable["N0"]
 }

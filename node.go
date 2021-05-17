@@ -6,10 +6,14 @@ import(
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"sync"
+	"time"
 )
 
+//global variables
 var localMessagePool = []Message{}
+var viewID = 0
 
 type Node struct{
 	nodeID 				string
@@ -18,21 +22,22 @@ type Node struct{
 	privKey 			[]byte
 	sequenceID 			int
 	view 				int
+	msgQueue			chan []byte
 	mutex 				sync.Mutex
 	requestPool 		map[string]*RequestMsg
 	prepareConfirmCount map[string]map[string]bool
 	commitConfirmCount	map[string]map[string]bool
 	isCommitBroadcast	map[string]bool
 	isReply				map[string]bool
-	//msgLog 		*MsgLog
+	msgLog		 		*MsgLog
 }
 
-/*type MsgLog struct{
+type MsgLog struct{
 	preprepareLog map[string]map[string]bool
 	prepareLog 	  map[string]map[string]bool
 	commitLog 	  map[string]map[string]bool
 	replyLog	  map[string]bool
-}*/
+}
 
 
 func newNode(nodeID string, addr string)*Node{
@@ -42,20 +47,42 @@ func newNode(nodeID string, addr string)*Node{
 	n.pubKey = n.getPubKey(nodeID)
 	n.privKey = n.getPrivKey(nodeID)
 	n.sequenceID = 0
-	n.view = 0
+	n.view = viewID
+	n.msgQueue = make(chan []byte)
 	n.mutex = sync.Mutex{}
 	n.requestPool = make(map[string]*RequestMsg)
-	/*n.msgLog = &MsgLog{
+	n.msgLog = &MsgLog{
 		make(map[string]map[string]bool),
 		make(map[string]map[string]bool),
 		make(map[string]map[string]bool),
 		make(map[string]bool),
-	}*/
+	}
 	return n
 }
 
 func (n *Node) Initiate(){
-	//go n.handleMsg()
+	n.handleMsg()
+	ln, err := net.Listen("tcp", n.addr)
+	if err != nil{
+		panic(err)
+	}
+	defer ln.Close()
+	fmt.Printf("node server starts at %s\n", n.addr)
+	for{
+		conn, err := ln.Accept()
+		if err != nil{
+			panic(err)
+		}
+		n.handleConnection(conn)
+	}
+}
+
+func (n* Node) handleConnection(conn net.Conn){
+	req, err := ioutil.ReadAll(conn)
+	if err != nil{
+		panic(err)
+	}
+	n.msgQueue <- req
 }
 
 func (n *Node) addSID() int{
@@ -65,18 +92,21 @@ func (n *Node) addSID() int{
 }
 
 
-func (n *Node) handleMsg(data []byte){
-	header, payload, sig := splitMsg(data)
+func (n *Node) handleMsg(){
+	for{
+		data := <- n.msgQueue 
+		header, payload, sig := splitMsg(data)
 
-	switch Header(header){
-	case Request:
-		n.handleRequest(payload, sig)
-	case PrePrepare:
-		n.handlePrePrepare(payload, sig)
-	case Prepare:
-		n.handlePrepare(payload, sig)
-	case Commit:
-		n.handleCommit(payload, sig)
+		switch Header(header){
+		case Request:
+			n.handleRequest(payload, sig)
+		case PrePrepare:
+			n.handlePrePrepare(payload, sig)
+		case Prepare:
+			n.handlePrepare(payload, sig)
+		case Commit:
+			n.handleCommit(payload, sig)
+		}
 	}
 }
 
@@ -102,6 +132,7 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 	}
 	prePreparePacket := PrePrepareMsg{
 		*r,
+		viewID,
 		n.sequenceID,
 		strDigest,
 		signature,
@@ -112,6 +143,14 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 		log.Panic(err)
 	}
 	message := mergeMsg(PrePrepare, done)
+	n.mutex.Lock()
+	//put preprepare msg into preprepare log
+	if n.msgLog.preprepareLog[prePreparePacket.Digest] == nil{
+		n.msgLog.preprepareLog[prePreparePacket.Digest] = make(map[string]bool)
+	}
+	n.msgLog.preprepareLog[prePreparePacket.Digest][n.nodeID] = true
+	n.mutex.Unlock()
+
 	n.broadcast(message)
 }
 
@@ -144,6 +183,7 @@ func (n *Node) handlePrePrepare(payload []byte, sig []byte){
 			log.Panic(err)
 		}
 		preparePacket := PrepareMsg{
+			viewID,
 			pp.SequenceID,
 			pp.Digest, 
 			n.nodeID, 
@@ -154,6 +194,14 @@ func (n *Node) handlePrePrepare(payload []byte, sig []byte){
 			log.Panic(err)
 		}
 		message := mergeMsg(Prepare, done)
+		//put prepare msg into prepare log
+		n.mutex.Lock()
+		if n.msgLog.prepareLog[preparePacket.Digest] == nil{
+			n.msgLog.prepareLog[preparePacket.Digest] = make(map[string]bool)
+		} 
+		n.msgLog.prepareLog[preparePacket.Digest][n.nodeID] = true
+		n.mutex.Unlock()
+
 		n.broadcast(message)
 	}
 }
@@ -191,27 +239,36 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 
 		if count >= specifiedCount && !n.isCommitBroadcast[pre.Digest]{
 			fmt.Println("minimum (prepare) consensus achieved!")
-		signature, err := n.signMessage(digestByte, n.privKey)
-		if err != nil{
-			log.Panic(err)
-		}
-		c := CommitMsg{
-			pre.Digest,
-			pre.SequenceID,
-			n.nodeID,
-			signature,
-		}
-		done, err := json.Marshal(c)
-		if err != nil{
-			log.Panic(err)
-		} 
-		fmt.Println("broadcasting commit message..")
+			signature, err := n.signMessage(digestByte, n.privKey)
+			if err != nil{
+				log.Panic(err)
+			}
+			c := CommitMsg{
+				viewID,
+				pre.Digest,
+				pre.SequenceID,
+				n.nodeID,
+				signature,
+			}
+			done, err := json.Marshal(c)
+			if err != nil{
+				log.Panic(err)
+			} 
+			fmt.Println("broadcasting commit message..")
 
-		message := mergeMsg(Commit, done)
-		n.broadcast(message)
-		n.isCommitBroadcast[pre.Digest] = true
-		fmt.Println("committed successfully")
-		}
+			message := mergeMsg(Commit, done)
+			//put commit msg into commit log
+			n.mutex.Lock()
+			if n.msgLog.commitLog[c.Digest] == nil{
+				n.msgLog.commitLog[c.Digest] = make(map[string]bool)
+			}
+			n.msgLog.commitLog[c.Digest][n.nodeID] = true
+			n.mutex.Unlock()
+
+			n.broadcast(message)
+			n.isCommitBroadcast[pre.Digest] = true
+			fmt.Println("committed successfully")
+			}
 		n.mutex.Unlock()
 	}
 }
@@ -241,17 +298,58 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 		n.mutex.Lock()
 		if count >= nodeCount / 3 * 2 && !n.isReply[cmt.Digest] && n.isCommitBroadcast[cmt.Digest]{
 			fmt.Println("minimum (commit) consensus achieved!")
-			localMessagePool = append(localMessagePool, n.requestPool[cmt.Digest].CMessage)
-			info := n.nodeID + n.requestPool[cmt.Digest].CMessage.Request
-			fmt.Println(info)
-			fmt.Println("replying client..")
-			//tcpDial([]byte(info), n.messagePool[cmt.Digest].ClientAddr)
+
+			signature, err := n.signMessage(digestByte, n.privKey)
+			if err != nil{
+				log.Panic(err)
+			}
+
+			d := ReplyMsg{
+				viewID,
+				int(time.Now().Unix()),
+				//clientID,
+				n.nodeID,
+				"success",
+				signature,
+			}
+
+			done, err := json.Marshal(d)
+			if err != nil{
+				log.Panic(err)
+			}
+
+			fmt.Println("broadcasting results..")
+			message := mergeMsg(Reply, done)
+			send(message, n.requestPool[cmt.Digest].CAddr)
+			//localMessagePool = append(localMessagePool, n.requestPool[cmt.Digest].CMessage)
+			//info := n.nodeID + n.requestPool[cmt.Digest].CMessage.Request
+			//fmt.Println(info)
+			//fmt.Println("replying client..")
+			//send([]byte(info), n.messagePool[cmt.Digest].ClientAddr)
 			n.isReply[cmt.Digest] = true
 			fmt.Println("successfully replied!")
 		}
 		n.mutex.Unlock()
 	}
 }
+
+/*pending methods
+func (n *Node) handleCommited(){
+
+}
+
+func (n *Node) handleCheckpoint(){
+
+}
+
+func (n *Node) handleViewChange(){
+
+}
+
+func (n *Node) handleNewView(){
+
+}
+*/
 
 func (n *Node) verifyRequestDigest(digest string) error{
 	n.mutex.Lock()
@@ -294,8 +392,21 @@ func (n *Node) broadcast(data []byte){
 			continue
 		}
 		
-		//go tcpDial(message, nodeTable[i])
+		go send(data, nodeTable[i])
 	}
+}
+
+func (n* Node) reply(data []byte, cliaddr string){
+	conn, err := net.Dial("tcp", cliaddr)
+	if err != nil{
+		log.Println("connect error", err)
+		return 
+	}
+	_, err = conn.Write(data)
+	if err != nil{
+		log.Fatal(err)
+	}
+	conn.Close()
 }
 
 func (n *Node) getPubKey(nodeID string) []byte {

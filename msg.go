@@ -1,13 +1,10 @@
 package main
 
-import(
-	//"encoding/json"
-	//"fmt"
-)
-
+//global variables
 type Header string
 const headerLength = 12
 
+//header title
 const(
 	Request		Header = "Request"
 	PrePrepare	Header = "PrePrepare"
@@ -16,7 +13,7 @@ const(
 	Reply		Header = "Reply"
 )
 
-//Message format
+//message format
 type Message struct{
 	Request		string	`json:"message"`
 	Digest		string	`json:"digest"`
@@ -28,14 +25,15 @@ type RequestMsg struct{
 	Timestamp	int    `json:"timestamp"`
 	ClientID	string `json:"clientID"`
 	//Signature 	[]byte `json: "signature"`
-	CMessage	Message `json:"clientmessage"`	
+	CMessage	Message `json:"clientmessage"`
+	CAddr	string	`json:"clientaddress"`
 }
 
 //<PRE-PREPREPARE, v, n, d> with digital signature, σ, m>
 //According to the original paper, client requests are not included in pre-prepare packets to keep them small
 type PrePrepareMsg struct{
 	Request		RequestMsg	`json:"Request"`
-	//View 		int 		`json: "view"`
+	View 		int 		`json:"view"`
 	SequenceID	int 		`json:"sequenceID"`
 	//digest for message, m
 	Digest		string		`json:"digest"`
@@ -45,7 +43,7 @@ type PrePrepareMsg struct{
 
 //<PREPARE, v, n, d, i> with digital signature, σ
 type PrepareMsg struct{
-	//View		int		`json: "view"`
+	View		int		`json:"view"`
 	SequenceID	int		`json:"sequenceID"`
 	Digest		string 	`json:"digest"`
 	//nodeID = the current/sender ID of this prepare msg
@@ -55,7 +53,7 @@ type PrepareMsg struct{
 
 //<COMMIT, v, n, d, i> with digital signature, σ
 type CommitMsg struct{
-	//View		int		`json: "view"`
+	View		int		`json:"view"`
 	Digest		string 	`json:"digest"`
 	SequenceID	int		`json:"sequenceID"`
 	NodeID		string 	`json:"nodeID"`
@@ -64,11 +62,12 @@ type CommitMsg struct{
 
 //<RESULT, v, t, c, i, r>
 type ReplyMsg struct{
-	//View		int	   `json: "view"`
+	View		int	   `json:"view"`
 	Timestamp	int	   `json:"timestamp"`
-	ClientID	string `json:"clientID"`
+	//ClientID	string `json:"clientID"`
 	NodeID		string `json:"nodeID"`
 	Result		string `json:"result"`
+	Signature	[]byte	`json:"signature"`
 }
 
 func mergeMsg(header Header, payload []byte) []byte{

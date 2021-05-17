@@ -8,7 +8,10 @@ import (
 	"log"
 )
 
+//global variables
 var nodeCount int
+var nodeTable map[string]string
+var jnodes JsonNodes
 
 //create slices of JsonNode
 type JsonNodes struct{
@@ -21,11 +24,10 @@ type JsonNode struct{
 	URL string `json:"url"`
 }
 
-//global variable
-var nodeTable map[string]string
 
 func main(){
 	fmt.Println("Hello World")
+
 	//Retrieve nodes' information from a json file
 	jsonFile, err := os.Open("node.json")
 
@@ -39,10 +41,6 @@ func main(){
 
 	byteValue, _ := ioutil.ReadAll(jsonFile)
 
-	var jnodes JsonNodes
-
-	//nodeTable := make(map[string]string)
-
 	json.Unmarshal(byteValue, &jnodes)
 
 	for i:=0; i<len(jnodes.JsonNodes); i++{
@@ -55,16 +53,16 @@ func main(){
 	}
 
 	//pre-generate RSA keys; public and private 
-	genRSAkeys(len(jnodes.JsonNodes))
+	genKeys(len(jnodes.JsonNodes))
 
-	//terminal initiation
+	//terminal input condition
 	if len(os.Args)!=2{
 		log.Panic("command insertion error!")
 	}
 
 	termID := os.Args[1]
 	//client
-	if termID == "N0"{
+	if termID == "C1"{
 		if addr, ok := nodeTable[termID]; ok{
 		client := newClient(termID, addr)
 		client.Initiate()
