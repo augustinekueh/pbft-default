@@ -121,6 +121,12 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 	n.addSID()
 	//obtain digest of requestmsg
 	digest := createDigest(*r)
+	//verify digest
+	vdig := verifyDigest(digest, r.CMessage.Digest)
+	if vdig == false{
+		fmt.Printf("verify digest failed\n")
+		return
+	}
 	strDigest := hex.EncodeToString(digest[:])
 	//store map; digest = key, requestmsg = value
 	n.requestPool[strDigest] = r
@@ -361,6 +367,7 @@ func (n *Node) verifyRequestDigest(digest string) error{
 	n.mutex.Unlock()
 	return nil
 }
+
 /*
 func (n *Node) findVerifiedPrepareMsgCount(digest string) (int, error){
 	sum := 0
@@ -386,6 +393,7 @@ func (n *Node) findVerifiedCommitMsgCount(digest string) (int, error){
 	return sum, nil
 }
 */
+
 func (n *Node) broadcast(data []byte){
 	for i := range nodeTable{
 		if i == n.nodeID{

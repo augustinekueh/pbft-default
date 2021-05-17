@@ -7,6 +7,7 @@ import(
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/json"
+	"encoding/hex"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -15,8 +16,10 @@ import(
 	"os"
 	"strconv"
 )
-//TOTAL METHODS: 7
+
+//TOTAL METHODS: 10
 //hashcode
+
 func createDigest(request RequestMsg) []byte{
 	bmsg, err := json.Marshal(request)
 	if err != nil{
@@ -81,21 +84,19 @@ func send(data []byte, addr string){
 	conn.Close()
 }
 
-/*func countTotalFaultNodes() int{
-	
+func countTotalFaultNodes() int{
+	return (nodeCount-1) / 3
 }
-*/
+
 
 func countTotalMsgAmount() int{
-	//f := countToleratefaultNode()
-	return 0
+	f := countTotalFaultNodes()
+	return f + 1
 }
 
-/*
-func verifyDigest(msg interface{}, digest string) bool{
-	return hex.EncodeToString(createDigest(msg)) == digest
+func verifyDigest(msg []byte, digest string) bool{
+	return hex.EncodeToString(msg) == digest
 }
-*/
 
 //generate keys beforehand 
 func genKeys(nodes int){
