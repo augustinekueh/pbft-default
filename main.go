@@ -11,7 +11,9 @@ import (
 //global variables
 var nodeCount int
 var nodeTable map[string]string
-var jnodes JsonNodes
+var jnodes *JsonNodes
+var ClientNode *JsonNode
+//var PrimaryNode *JsonNode
 
 //create slices of JsonNode
 type JsonNodes struct{
@@ -62,8 +64,12 @@ func main(){
 
 	termID := os.Args[1]
 	//client
-	if termID == "C1"{
+	if termID == "C0"{
 		if addr, ok := nodeTable[termID]; ok{
+		ClientNode = &JsonNode{
+			termID,
+			nodeTable[termID],
+		}
 		client := newClient(termID, addr)
 		client.Initiate()
 		} else{

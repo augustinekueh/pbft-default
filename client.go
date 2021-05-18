@@ -7,9 +7,9 @@ import(
 	"math/rand"
 	"net"
 	"log"
+	"strconv"
 	"time"
 )
-
 
 type Client struct{
 	clientID string
@@ -88,7 +88,7 @@ func (c *Client) sendRequest(){
 
 	packet := mergeMsg(Request, rp)
 	primaryNode := findPrimaryN()
-	send(packet, primaryNode)
+	send(packet, primaryNode.URL)
 	c.message = r
 }
 
@@ -125,6 +125,15 @@ func (c *Client) getPrivKey(clientID string) []byte {
 	return key
 }
 
-func findPrimaryN() string{
-	return nodeTable["N0"]
+func findPrimaryN() JsonNode{
+	//not sure correct or not..
+	var primaryNode JsonNode 
+	primaryID := viewID % len(jnodes.JsonNodes)
+	for _, v := range jnodes.JsonNodes{
+		if v.ID == strconv.Itoa(primaryID){
+			continue
+		}
+		primaryNode = v
+	}
+	return primaryNode
 }

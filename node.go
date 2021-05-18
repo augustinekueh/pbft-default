@@ -168,7 +168,7 @@ func (n *Node) handlePrePrepare(payload []byte, sig []byte){
 		log.Panic(err)
 	}
 	//get primary node's public key for verification
-	primaryNodePubKey := n.getPubKey("N0")
+	primaryNodePubKey := n.getPubKey(findPrimaryN().ID)//at client.go
 	
 	//decode string to byte format for signing
 	digestByte, _ := hex.DecodeString(pp.Digest)
