@@ -1,4 +1,3 @@
-start "client" /min cmd /k "pbft-default.exe C0"
 start "node 1" /min cmd /k "pbft-default.exe N0"
 start "node 2" /min cmd /k "pbft-default.exe N1"
 start "node 3" /min cmd /k "pbft-default.exe N2"

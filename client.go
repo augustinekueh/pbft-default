@@ -1,13 +1,19 @@
 package main
 
 import(
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
+	//"math/rand"
 	"net"
 	"log"
-	"strconv"
 	"time"
 )
 
@@ -64,31 +70,35 @@ func (c *Client) handleConnection(conn net.Conn){
 
 //rewrite
 func (c *Client) sendRequest(){
-	req := fmt.Sprintf("%d Transaction need to be approved", rand.Int())
+	req := fmt.Sprintf("Transaction need to be approved")
 
 	r := new(RequestMsg)
-	r.Operation = "immediate consensus required"
+	r.Operation = "immediate consensus required, please do it now"
 	r.Timestamp = int(time.Now().Unix())
 	r.ClientID = c.clientID
 	r.CMessage.Request = req
 	r.CAddr = c.addr
-
-	rp, err := json.Marshal(r)
-	if err != nil{
-		log.Panic(err)
-	}
-
-	fmt.Println(string(rp))
-
+	//r.Signature = c.signMessage(generateDigest(req), c.privKey)
+	
+	sig, err := c.signMessage(generateDigest(req), c.privKey)
 	if err != nil{
 		log.Panic(err)
 		fmt.Printf("error happened: %d", err)
 		return
 	}
+	
+	rp, err := json.Marshal(r)
+	if err != nil{
+		log.Panic(err)
+	}
 
-	packet := mergeMsg(Request, rp)
+	//fmt.Println(string(rp))
+	//here no need mergemsg 
+	//packet := mergeMsg(Request, rp)
+	fmt.Println("breakpoint")
 	primaryNode := findPrimaryN()
-	send(packet, primaryNode.URL)
+	//add mergemsg
+	send(mergeMsg(Request, rp, sig), primaryNode.URL)
 	c.message = r
 }
 
@@ -108,7 +118,7 @@ func (c* Client) handleReply(payload []byte){
 }
 
 func (c *Client) getPubKey(clientID string) []byte {
-	key, err := ioutil.ReadFile("Keys/" + clientID + "/" + clientID + "_RSA_PUB")
+	key, err := ioutil.ReadFile("Keys/" + clientID + "_pub")
 
 	if err != nil{
 		log.Panic(err)
@@ -117,7 +127,7 @@ func (c *Client) getPubKey(clientID string) []byte {
 }
 
 func (c *Client) getPrivKey(clientID string) []byte {
-	key, err := ioutil.ReadFile("Keys/" + clientID + "/" + clientID + "_RSA_PRIV")
+	key, err := ioutil.ReadFile("Keys/" + clientID + "_priv")
 
 	if err != nil{
 		log.Panic(err)
@@ -126,14 +136,34 @@ func (c *Client) getPrivKey(clientID string) []byte {
 }
 
 func findPrimaryN() JsonNode{
-	//not sure correct or not..
-	var primaryNode JsonNode 
-	primaryID := viewID % len(jnodes.JsonNodes)
-	for _, v := range jnodes.JsonNodes{
-		if v.ID == strconv.Itoa(primaryID){
-			continue
-		}
-		primaryNode = v
-	}
+	
+	var primaryNode JsonNode = JsonNode{
+		"N0",
+		"127.0.0.1:8080",
+	} 
 	return primaryNode
+	
+}
+
+//sign message using a private key
+func (c* Client) signMessage(data []byte, keyBytes []byte) ([]byte, error){
+	h := sha256.New()
+	h.Write(data)
+	hashed := h.Sum(nil)
+	block, _ := pem.Decode(keyBytes)
+	if block == nil{
+		panic(errors.New("private key error"))
+	}
+	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil{
+		fmt.Println("ParsePKCS1PrivateKey err", err)
+		panic(err)
+	}
+
+	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, hashed)
+	if err != nil{
+		fmt.Printf("Error from signing: %s\n", err)
+		panic(err)
+	}
+	return signature, err
 }

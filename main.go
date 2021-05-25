@@ -10,14 +10,14 @@ import (
 
 //global variables
 var nodeCount int
-var nodeTable map[string]string
+//var nodeTable map[string]string
 var jnodes *JsonNodes
 var ClientNode *JsonNode
 //var PrimaryNode *JsonNode
 
 //create slices of JsonNode
 type JsonNodes struct{
-	JsonNodes []JsonNode `json:"jnodes"`
+	JsonNodes []JsonNode `json:"nodes"`
 }
 
 //structure of a json node
@@ -25,7 +25,6 @@ type JsonNode struct{
 	ID string `json:"id"`
 	URL string `json:"url"`
 }
-
 
 func main(){
 	fmt.Println("Hello World")
@@ -42,7 +41,7 @@ func main(){
 	defer jsonFile.Close()
 
 	byteValue, _ := ioutil.ReadAll(jsonFile)
-
+	nodeTable := make(map[string]string)
 	json.Unmarshal(byteValue, &jnodes)
 
 	for i:=0; i<len(jnodes.JsonNodes); i++{
@@ -53,11 +52,12 @@ func main(){
 		fmt.Println(k, "value is", v)
 		nodeCount++
 	}
-
+	
 	//pre-generate RSA keys; public and private 
 	genKeys(len(jnodes.JsonNodes))
-
+	fmt.Println("endl")
 	//terminal input condition
+	
 	if len(os.Args)!=2{
 		log.Panic("command insertion error!")
 	}
@@ -66,6 +66,7 @@ func main(){
 	//client
 	if termID == "C0"{
 		if addr, ok := nodeTable[termID]; ok{
+		fmt.Println(addr)
 		ClientNode = &JsonNode{
 			termID,
 			nodeTable[termID],
@@ -73,14 +74,19 @@ func main(){
 		client := newClient(termID, addr)
 		client.Initiate()
 		} else{
+			fmt.Println(termID)
+			fmt.Println(nodeTable[termID])
 			log.Fatal("connection failed!")
 		}
 	//node
-	} else if addr, ok := nodeTable[termID]; ok{
-		node := newNode(termID, addr)
-		go node.Initiate()
+	} else if addr, ok := nodeTable[termID]; ok{	
+		fmt.Println(addr)
+		server := newServer(termID, addr)
+		server.Initiate()
 	} else {
-		log.Fatal("connection failed!")
+		fmt.Println(termID)
+		fmt.Println(nodeTable[termID])
+		log.Fatal("connection failed!!")
 	}
 	select {}
 }

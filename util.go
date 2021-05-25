@@ -11,10 +11,12 @@ import(
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
-	"strconv"
+	"path/filepath"
+	//"strconv"
 )
 
 //TOTAL METHODS: 10
@@ -29,8 +31,14 @@ func createDigest(request RequestMsg) []byte{
 	return hash[:]
 }
 
+func generateDigest(req string) []byte{
+	bmsg, _ := json.Marshal(req)
+	hash := sha256.Sum256(bmsg)
+	return hash[:] 
+}
+
 //sign message using a private key
-func (n *Node) signMessage(data []byte, keyBytes []byte) ([]byte, error){
+func signMessage(data []byte, keyBytes []byte) ([]byte, error){
 	h := sha256.New()
 	h.Write(data)
 	hashed := h.Sum(nil)
@@ -72,6 +80,7 @@ func (n *Node) verifySignature(data, sig, keyBytes []byte) bool{
 }
 
 func send(data []byte, addr string){
+	fmt.Println(data, addr)
 	conn, err := net.Dial("tcp", addr)
 	if err != nil{
 		log.Println("connect error", err)
@@ -102,24 +111,43 @@ func verifyDigest(msg []byte, digest string) bool{
 func genKeys(nodes int){
 	if !isExist("./Keys"){
 		fmt.Println("creating public and private keys...")
-		err := os.Mkdir("Keys", 0644)
+		fmt.Printf("Total nodes: %d\n", nodes)
+		err := os.Mkdir("Keys", 0700)
 		if err != nil{
 			log.Panic()
 		}
 
+		//for client
+		clientFile, _ := filepath.Abs("./Keys/C0")
+		if !isExist(clientFile + "_priv") && !isExist(clientFile + "_pub"){
+			pub, priv := genPair()
+			err := ioutil.WriteFile(clientFile + "_priv", priv, 0644)
+			if err != nil{
+				panic(err)
+			}
+			ioutil.WriteFile(clientFile + "_pub", pub, 0644)
+			if err != nil{
+				panic(err)
+			}
+		}
+
 		//make directories for keys
-		for i :=0; i <= nodes; i++{
-			if !isExist("./Keys/N" + strconv.Itoa(i)){
-				err := os.Mkdir("./Keys/N" + strconv.Itoa(i), 0644)
+		for i :=0; i < nodes; i++{
+			filename, _ := filepath.Abs(fmt.Sprintf("./Keys/N%d", i))
+			if !isExist(filename + "_priv") && !isExist(filename + "_pub"){
+				pub, priv := genPair()
+				err := ioutil.WriteFile(filename + "_priv", priv, 0644)
 				if err != nil{
-					log.Panic()
+					panic(err)
+				}
+				ioutil.WriteFile(filename + "_pub", pub, 0644)
+				if err != nil{
+					panic(err)
 				}
 			}
 
-			
-			pub, priv := getPair()
 			//create public keys
-			pubFileName := "Keys/N" + strconv.Itoa(i) + "/N" + strconv.Itoa(i) + "_RSA_PUB"
+			/*pubFileName := "Keys/N" + strconv.Itoa(i) + "/N" + strconv.Itoa(i) + "_RSA_PUB"
 			pubFile, err := os.OpenFile(pubFileName, os.O_RDWR|os.O_CREATE, 0644)
 			if err != nil{
 				log.Panic(err)
@@ -136,14 +164,14 @@ func genKeys(nodes int){
 			defer privFile.Close()
 			privFile.Write(priv)
 		}
-		fmt.Println("all keys created successfully!")
+		fmt.Println("all keys created successfully!")*/
+		}
 	}
 }
-
 //sub-method from genRSAKeys
-func getPair() (pubKey, privKey []byte){
+func genPair() (pubKey, privKey []byte){
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil{
 		panic(err)
 	}
@@ -158,12 +186,15 @@ func getPair() (pubKey, privKey []byte){
 	publicKey := &privateKey.PublicKey
 	
 	derPkix, err := x509.MarshalPKIXPublicKey(publicKey)
+	if err != nil{
+		panic(err)
+	}
 	pubBlock := &pem.Block{
 		Type: "PUBLIC KEY",
 		Bytes: derPkix,
 	}
 	pubKey = pem.EncodeToMemory(pubBlock)
-	return
+	return pubKey, privKey
 }
 
 //search for filepath and return a bool

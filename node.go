@@ -61,7 +61,7 @@ func newNode(nodeID string, addr string)*Node{
 }
 
 func (n *Node) Initiate(){
-	n.handleMsg()
+	go n.handleMsg()
 	ln, err := net.Listen("tcp", n.addr)
 	if err != nil{
 		panic(err)
@@ -73,7 +73,7 @@ func (n *Node) Initiate(){
 		if err != nil{
 			panic(err)
 		}
-		n.handleConnection(conn)
+		go n.handleConnection(conn)
 	}
 }
 
@@ -95,8 +95,9 @@ func (n *Node) addSID() int{
 func (n *Node) handleMsg(){
 	for{
 		data := <- n.msgQueue 
+		fmt.Println("breakpoint")
 		header, payload, sig := splitMsg(data)
-
+		fmt.Println("breakpoint10")
 		switch Header(header){
 		case Request:
 			n.handleRequest(payload, sig)
@@ -113,13 +114,16 @@ func (n *Node) handleMsg(){
 func (n *Node) handleRequest(payload []byte, sig []byte){
 	//create instance of requestmsg
 	r := new(RequestMsg)
-	//convert json to struct fromat
+	//convert json to struct format
+	fmt.Println("breakpoint11")
 	err := json.Unmarshal(payload, r)
 	if err != nil{
 		log.Panic(err)
 	}
+	
 	n.addSID()
 	//obtain digest of requestmsg
+	fmt.Println("breakpoint12")
 	digest := createDigest(*r)
 	//verify digest
 	vdig := verifyDigest(digest, r.CMessage.Digest)
@@ -132,7 +136,7 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 	n.requestPool[strDigest] = r
 	//decode string to byte format for signing
 	digestByte, _ := hex.DecodeString(strDigest)
-	signature, err := n.signMessage(digestByte, n.privKey)
+	signature, err := signMessage(digestByte, n.privKey)
 	if err != nil{
 		log.Panic(err)
 	}
@@ -141,14 +145,14 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 		viewID,
 		n.sequenceID,
 		strDigest,
-		signature,
+		//signature,
 	} 
 	//convert struct to json format
 	done, err := json.Marshal(prePreparePacket)
 	if err != nil{
 		log.Panic(err)
 	}
-	message := mergeMsg(PrePrepare, done)
+	message := mergeMsg(PrePrepare, done, signature)
 	n.mutex.Lock()
 	//put preprepare msg into preprepare log
 	if n.msgLog.preprepareLog[prePreparePacket.Digest] == nil{
@@ -177,14 +181,14 @@ func (n *Node) handlePrePrepare(payload []byte, sig []byte){
 		fmt.Println("digest not match, further application rejected!")
 	} else if n.sequenceID+1 != pp.SequenceID{
 		fmt.Println("incorrect sequence, further application rejected!")
-	} else if !n.verifySignature(digestByte, pp.Signature, primaryNodePubKey){
+	} else if !n.verifySignature(digestByte, sig, primaryNodePubKey){
 		fmt.Println("key verification failed, further application rejected!")
 	} else {
 		//success
 		n.sequenceID = pp.SequenceID
 		fmt.Println("stored into message pool")
 		n.requestPool[pp.Digest] = &pp.Request
-		signature, err := n.signMessage(digestByte, n.privKey)
+		signature, err := signMessage(digestByte, n.privKey)
 		if err != nil{
 			log.Panic(err)
 		}
@@ -193,13 +197,13 @@ func (n *Node) handlePrePrepare(payload []byte, sig []byte){
 			pp.SequenceID,
 			pp.Digest, 
 			n.nodeID, 
-			signature,
+			//signature,
 		}
 		done, err := json.Marshal(preparePacket)
 		if err != nil{
 			log.Panic(err)
 		}
-		message := mergeMsg(Prepare, done)
+		message := mergeMsg(Prepare, done, signature)
 		//put prepare msg into prepare log
 		n.mutex.Lock()
 		if n.msgLog.prepareLog[preparePacket.Digest] == nil{
@@ -226,7 +230,7 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 		fmt.Println("unable to retrieve digest, further application rejected!")
 	} else if n.sequenceID != pre.SequenceID{
 		fmt.Println("incorrect sequence, further application rejected!")
-	} else if !n.verifySignature(digestByte, pre.Signature, msgNodePubKey){
+	} else if !n.verifySignature(digestByte, sig, msgNodePubKey){
 		fmt.Println("key verification failed, further application rejected!")
 	} else{
 		//success
@@ -245,7 +249,7 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 
 		if count >= specifiedCount && !n.isCommitBroadcast[pre.Digest]{
 			fmt.Println("minimum (prepare) consensus achieved!")
-			signature, err := n.signMessage(digestByte, n.privKey)
+			signature, err := signMessage(digestByte, n.privKey)
 			if err != nil{
 				log.Panic(err)
 			}
@@ -254,7 +258,7 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 				pre.Digest,
 				pre.SequenceID,
 				n.nodeID,
-				signature,
+				//signature,
 			}
 			done, err := json.Marshal(c)
 			if err != nil{
@@ -262,7 +266,7 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 			} 
 			fmt.Println("broadcasting commit message..")
 
-			message := mergeMsg(Commit, done)
+			message := mergeMsg(Commit, done, signature)
 			//put commit msg into commit log
 			n.mutex.Lock()
 			if n.msgLog.commitLog[c.Digest] == nil{
@@ -293,7 +297,7 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 		fmt.Println("unable to retrive digest, further application rejected")
 	} else if n.sequenceID != cmt.SequenceID{
 		fmt.Println("incorrect sequence, further application rejected!")
-	} else if !n.verifySignature(digestByte, cmt.Signature, msgNodePubKey){
+	} else if !n.verifySignature(digestByte, sig, msgNodePubKey){
 		fmt.Println("key verification failed, further application rejected!")
 	} else{
 		n.setCommitConfirmMap(cmt.Digest, cmt.NodeID, true)
@@ -305,7 +309,7 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 		if count >= nodeCount / 3 * 2 && !n.isReply[cmt.Digest] && n.isCommitBroadcast[cmt.Digest]{
 			fmt.Println("minimum (commit) consensus achieved!")
 
-			signature, err := n.signMessage(digestByte, n.privKey)
+			signature, err := signMessage(digestByte, n.privKey)
 			if err != nil{
 				log.Panic(err)
 			}
@@ -316,7 +320,7 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 				//clientID,
 				n.nodeID,
 				"success",
-				signature,
+				//signature,
 			}
 
 			done, err := json.Marshal(d)
@@ -325,7 +329,7 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 			}
 
 			fmt.Println("broadcasting results..")
-			message := mergeMsg(Reply, done)
+			message := mergeMsg(Reply, done, signature)
 			send(message, n.requestPool[cmt.Digest].CAddr)
 			//localMessagePool = append(localMessagePool, n.requestPool[cmt.Digest].CMessage)
 			//info := n.nodeID + n.requestPool[cmt.Digest].CMessage.Request
@@ -395,13 +399,13 @@ func (n *Node) findVerifiedCommitMsgCount(digest string) (int, error){
 */
 
 func (n *Node) broadcast(data []byte){
-	for i := range nodeTable{
+	/*for i := range nodeTable{
 		if i == n.nodeID{
 			continue
 		}
 		
 		go send(data, nodeTable[i])
-	}
+	}*/
 }
 
 func (n* Node) reply(data []byte, cliaddr string){
@@ -418,7 +422,7 @@ func (n* Node) reply(data []byte, cliaddr string){
 }
 
 func (n *Node) getPubKey(nodeID string) []byte {
-	key, err := ioutil.ReadFile("Keys/" + nodeID + "/" + nodeID + "_RSA_PUB")
+	key, err := ioutil.ReadFile("Keys/" + nodeID + "_pub")
 
 	if err != nil{
 		log.Panic(err)
@@ -427,7 +431,7 @@ func (n *Node) getPubKey(nodeID string) []byte {
 }
 
 func (n *Node) getPrivKey(nodeID string) []byte {
-	key, err := ioutil.ReadFile("Keys/" + nodeID + "/" + nodeID + "_RSA_PRIV")
+	key, err := ioutil.ReadFile("Keys/" + nodeID + "_priv")
 
 	if err != nil{
 		log.Panic(err)
