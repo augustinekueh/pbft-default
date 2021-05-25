@@ -1,0 +1,8 @@
+Draft 4.0
+
+Current Fix:
+Slices out of bound
+Unexpected end of JSON
+
+Current Roadblock:
+Digest Mismatch
