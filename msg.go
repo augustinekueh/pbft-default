@@ -6,7 +6,7 @@ import(
 
 //global variables
 type Header string
-const headerLength = 13
+const headerLength = 12
 
 //header title
 const(
@@ -20,7 +20,7 @@ const(
 //message format
 type Message struct{
 	Request		string	`json:"message"`
-	Digest		string	`json:"digest"`
+	Digest		[]byte	`json:"digest"`
 }
 
 //<REQUEST, o, t, c> with digital signature, σ

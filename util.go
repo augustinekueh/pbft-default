@@ -103,8 +103,10 @@ func countTotalMsgAmount() int{
 	return f + 1
 }
 
-func verifyDigest(msg []byte, digest string) bool{
-	return hex.EncodeToString(msg) == digest
+func verifyDigest(msg []byte, digest []byte) bool{
+	fmt.Println(hex.EncodeToString(msg))
+	fmt.Println(hex.EncodeToString(digest))
+	return hex.EncodeToString(msg) == hex.EncodeToString(digest)
 }
 
 //generate keys beforehand 

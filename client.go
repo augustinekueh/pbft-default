@@ -74,12 +74,14 @@ func (c *Client) sendRequest(){
 
 	r := new(RequestMsg)
 	r.Operation = "immediate consensus required, please do it now"
-	r.Timestamp = int(time.Now().Unix())
+	r.Timestamp = int(time.Now().Unix()) //volatile, hash will be different
 	r.ClientID = c.clientID
 	r.CMessage.Request = req
+	r.CMessage.Digest = generateDigest(req)
 	r.CAddr = c.addr
 	//r.Signature = c.signMessage(generateDigest(req), c.privKey)
 	
+	fmt.Println(r)
 	sig, err := c.signMessage(generateDigest(req), c.privKey)
 	if err != nil{
 		log.Panic(err)

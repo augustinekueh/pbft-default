@@ -24,6 +24,7 @@ type Node struct{
 	view 				int
 	msgQueue			chan []byte
 	mutex 				sync.Mutex
+	nodeTable			map[string]string
 	requestPool 		map[string]*RequestMsg
 	prepareConfirmCount map[string]map[string]bool
 	commitConfirmCount	map[string]map[string]bool
@@ -40,7 +41,7 @@ type MsgLog struct{
 }
 
 
-func newNode(nodeID string, addr string)*Node{
+func newNode(nodeID string, addr string, nodeTable map[string]string)*Node{
 	n := new(Node)
 	n.nodeID = nodeID
 	n.addr = addr
@@ -50,6 +51,7 @@ func newNode(nodeID string, addr string)*Node{
 	n.view = viewID
 	n.msgQueue = make(chan []byte)
 	n.mutex = sync.Mutex{}
+	n.nodeTable = nodeTable
 	n.requestPool = make(map[string]*RequestMsg)
 	n.msgLog = &MsgLog{
 		make(map[string]map[string]bool),
@@ -117,6 +119,7 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 	//convert json to struct format
 	fmt.Println("breakpoint11")
 	err := json.Unmarshal(payload, r)
+	fmt.Println(r)
 	if err != nil{
 		log.Panic(err)
 	}
@@ -125,8 +128,11 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 	//obtain digest of requestmsg
 	fmt.Println("breakpoint12")
 	digest := createDigest(*r)
+	digestmsg := generateDigest(r.CMessage.Request)
 	//verify digest
-	vdig := verifyDigest(digest, r.CMessage.Digest)
+	//did not provide client message digest
+	vdig := verifyDigest(digestmsg, r.CMessage.Digest)
+	fmt.Println(vdig)
 	if vdig == false{
 		fmt.Printf("verify digest failed\n")
 		return
@@ -161,7 +167,8 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 	n.msgLog.preprepareLog[prePreparePacket.Digest][n.nodeID] = true
 	n.mutex.Unlock()
 
-	n.broadcast(message)
+	//n.broadcast(message)//haven't finished the broadcast method
+	fmt.Println(message)
 }
 
 func (n *Node) handlePrePrepare(payload []byte, sig []byte){
@@ -399,13 +406,12 @@ func (n *Node) findVerifiedCommitMsgCount(digest string) (int, error){
 */
 
 func (n *Node) broadcast(data []byte){
-	/*for i := range nodeTable{
+	for i := range n.nodeTable{
 		if i == n.nodeID{
 			continue
 		}
-		
-		go send(data, nodeTable[i])
-	}*/
+		go send(data, n.nodeTable[i])
+	}
 }
 
 func (n* Node) reply(data []byte, cliaddr string){

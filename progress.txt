@@ -1,8 +1,7 @@
-Draft 4.0
+Draft 4.1
 
 Current Fix:
-Slices out of bound
-Unexpected end of JSON
+Digest Mismatch
 
 Current Roadblock:
-Digest Mismatch
+Fail to Broadcast Message 

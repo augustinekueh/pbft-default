@@ -81,8 +81,9 @@ func main(){
 	//node
 	} else if addr, ok := nodeTable[termID]; ok{	
 		fmt.Println(addr)
-		server := newServer(termID, addr)
+		server := newServer(termID, addr, nodeTable)
 		server.Initiate()
+		//server.memberNodes()
 	} else {
 		fmt.Println(termID)
 		fmt.Println(nodeTable[termID])
