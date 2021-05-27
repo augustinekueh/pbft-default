@@ -1,7 +1,9 @@
-Draft 4.1
+Draft 4.2
 
 Current Fix:
-Digest Mismatch
+Broadcast Message to Member Nodes
+SequenceID for Primary Node
 
 Current Roadblock:
-Fail to Broadcast Message 
+Assignment to entry in nil map (prepare)
+Need to improvise pre-preprepare method

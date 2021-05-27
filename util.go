@@ -81,9 +81,10 @@ func (n *Node) verifySignature(data, sig, keyBytes []byte) bool{
 
 func send(data []byte, addr string){
 	fmt.Println(data, addr)
+	fmt.Println("breakpoint")
 	conn, err := net.Dial("tcp", addr)
 	if err != nil{
-		log.Println("connect error", err)
+		log.Println("connect error:", err)
 		return 
 	}
 	_, err = conn.Write(data)

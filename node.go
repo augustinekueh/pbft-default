@@ -53,6 +53,8 @@ func newNode(nodeID string, addr string, nodeTable map[string]string)*Node{
 	n.mutex = sync.Mutex{}
 	n.nodeTable = nodeTable
 	n.requestPool = make(map[string]*RequestMsg)
+	//here prepareConfirmCount
+	n.prepareConfirmCount = make(map[string]map[string]bool)
 	n.msgLog = &MsgLog{
 		make(map[string]map[string]bool),
 		make(map[string]map[string]bool),
@@ -123,8 +125,9 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 	if err != nil{
 		log.Panic(err)
 	}
-	
+	fmt.Printf("sequenceID: %d\n", n.sequenceID)
 	n.addSID()
+	fmt.Printf("sequenceID: %d\n", n.sequenceID)
 	//obtain digest of requestmsg
 	fmt.Println("breakpoint12")
 	digest := createDigest(*r)
@@ -167,8 +170,9 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 	n.msgLog.preprepareLog[prePreparePacket.Digest][n.nodeID] = true
 	n.mutex.Unlock()
 
-	//n.broadcast(message)//haven't finished the broadcast method
+	n.broadcast(message)//haven't finished the broadcast method
 	fmt.Println(message)
+	n.sequenceID--
 }
 
 func (n *Node) handlePrePrepare(payload []byte, sig []byte){
@@ -184,14 +188,18 @@ func (n *Node) handlePrePrepare(payload []byte, sig []byte){
 	//decode string to byte format for signing
 	digestByte, _ := hex.DecodeString(pp.Digest)
 	//set approval conditions
+	fmt.Printf("sequenceID: %d\n", n.sequenceID)
+	fmt.Printf("sequenceID (pp): %d\n", pp.SequenceID)
 	if digest := createDigest(pp.Request); hex.EncodeToString(digest[:]) != pp.Digest{
 		fmt.Println("digest not match, further application rejected!")
 	} else if n.sequenceID+1 != pp.SequenceID{
 		fmt.Println("incorrect sequence, further application rejected!")
+		fmt.Println("breakpoint/problem")
 	} else if !n.verifySignature(digestByte, sig, primaryNodePubKey){
 		fmt.Println("key verification failed, further application rejected!")
 	} else {
 		//success
+		fmt.Printf("sequenceID: %d\n", n.sequenceID)
 		n.sequenceID = pp.SequenceID
 		fmt.Println("stored into message pool")
 		n.requestPool[pp.Digest] = &pp.Request
@@ -241,7 +249,9 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 		fmt.Println("key verification failed, further application rejected!")
 	} else{
 		//success
+		fmt.Println("breakpoint/prepare")
 		n.setPrepareConfirmMap(pre.Digest, pre.NodeID, true)
+		fmt.Println("breakpoint2/prepare")
 		count := 0
 		for range n.prepareConfirmCount[pre.Digest]{
 			count++
@@ -406,11 +416,11 @@ func (n *Node) findVerifiedCommitMsgCount(digest string) (int, error){
 */
 
 func (n *Node) broadcast(data []byte){
-	for i := range n.nodeTable{
-		if i == n.nodeID{
-			continue
+	for _, i := range n.nodeTable{
+		if i != n.nodeID{
+			fmt.Println(i)
+			send(data, i)
 		}
-		go send(data, n.nodeTable[i])
 	}
 }
 
@@ -447,7 +457,9 @@ func (n *Node) getPrivKey(nodeID string) []byte {
 
 func (n *Node) setPrepareConfirmMap(x, y string, b bool){
 	if _, ok := n.prepareConfirmCount[x]; !ok{
-		n.prepareConfirmCount[x] = make(map[string]bool)
+		n.prepareConfirmCount[x] = make(map[string]bool)//problem
+		fmt.Println(x)
+		fmt.Println(y)
 	}
 	n.prepareConfirmCount[x][y] = b
 }
