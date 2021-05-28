@@ -64,6 +64,14 @@ func (c *Client) handleConnection(conn net.Conn){
 	}
 	switch header{
 	case Reply:
+		/*rep := new(ReplyMsg)
+		err := json.Unmarshal(payload, &rep)
+		if err != nil{
+			fmt.Println("breakpointxx/reply")
+			//log.Panic(err)
+			fmt.Printf("error happened: %d", err)
+			return
+		}*/
 		c.handleReply(payload)
 	}
 }
@@ -105,15 +113,17 @@ func (c *Client) sendRequest(){
 }
 
 func (c* Client) handleReply(payload []byte){
-	var replyMsg ReplyMsg
-	err := json.Unmarshal(payload, &replyMsg)
+	//var replyMsg ReplyMsg
+	rep := new(ReplyMsg)
+	err := json.Unmarshal(payload, &rep)
+	fmt.Println(rep)
 	rlen := len(c.replyLog)
 	if err != nil{
-		log.Panic(err)
+		fmt.Println("breakpoint/reply")
+		//log.Panic(err)
 		fmt.Printf("error happened: %d", err)
 		return
 	}
-
 	if rlen >= countTotalMsgAmount(){
 		fmt.Println("requst approved!")
 	}

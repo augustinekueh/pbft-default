@@ -55,6 +55,9 @@ func newNode(nodeID string, addr string, nodeTable map[string]string)*Node{
 	n.requestPool = make(map[string]*RequestMsg)
 	//here prepareConfirmCount
 	n.prepareConfirmCount = make(map[string]map[string]bool)
+	n.commitConfirmCount = make(map[string]map[string]bool)
+	n.isCommitBroadcast = make(map[string]bool)
+	n.isReply = make(map[string]bool)
 	n.msgLog = &MsgLog{
 		make(map[string]map[string]bool),
 		make(map[string]map[string]bool),
@@ -226,7 +229,7 @@ func (n *Node) handlePrePrepare(payload []byte, sig []byte){
 		} 
 		n.msgLog.prepareLog[preparePacket.Digest][n.nodeID] = true
 		n.mutex.Unlock()
-
+		
 		n.broadcast(message)
 	}
 }
@@ -237,7 +240,6 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 	if err != nil{
 		log.Panic(err)
 	}
-
 	msgNodePubKey := n.getPubKey(pre.NodeID)
 	//decode string to byte format 
 	digestByte, _ := hex.DecodeString(pre.Digest)
@@ -262,7 +264,7 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 		} else{
 			specifiedCount = (nodeCount / 3 * 2) -1
 		}
-		n.mutex.Lock()
+		//n.mutex.Lock()
 
 		if count >= specifiedCount && !n.isCommitBroadcast[pre.Digest]{
 			fmt.Println("minimum (prepare) consensus achieved!")
@@ -282,21 +284,24 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 				log.Panic(err)
 			} 
 			fmt.Println("broadcasting commit message..")
-
+			
 			message := mergeMsg(Commit, done, signature)
 			//put commit msg into commit log
-			n.mutex.Lock()
+			fmt.Println("breakpoint3/prepare")
+			//problem here
+			n.mutex.Lock()//<---
+			fmt.Println("breakpoint4/prepare")
 			if n.msgLog.commitLog[c.Digest] == nil{
 				n.msgLog.commitLog[c.Digest] = make(map[string]bool)
 			}
 			n.msgLog.commitLog[c.Digest][n.nodeID] = true
 			n.mutex.Unlock()
-
+			
 			n.broadcast(message)
 			n.isCommitBroadcast[pre.Digest] = true
 			fmt.Println("committed successfully")
 			}
-		n.mutex.Unlock()
+		//n.mutex.Unlock()
 	}
 }
 
@@ -340,6 +345,7 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 				//signature,
 			}
 
+			fmt.Println(d)
 			done, err := json.Marshal(d)
 			if err != nil{
 				log.Panic(err)

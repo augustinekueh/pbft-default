@@ -1,9 +1,18 @@
-Draft 4.2
+Draft 4.5
 
 Current Fix:
-Broadcast Message to Member Nodes
-SequenceID for Primary Node
-
-Current Roadblock:
 Assignment to entry in nil map (prepare)
 Need to improvise pre-preprepare method
+Broadcasting Commit Message Failed; Mutex Error
+            |   |   |
+            v   v   v
+Invalid Character 'u' after replied
+
+Current Roadblock:
+Public-Private Key Generation will fail the first attempt of program 
+
+Current Test:
+16 nodes (including a client node) in a single run (completed).
+
+Next Objective:
+Supply (n) transactions in a single run.

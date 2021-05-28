@@ -110,16 +110,16 @@ func splitMsg(message []byte) (Header, []byte, []byte){
 	header = Header(newHeaderBytes)
 	fmt.Println("breakpoint6")
 	switch header{
-	case Request, PrePrepare, Prepare, Commit:
+	case Request, PrePrepare, Prepare, Commit, Reply:
 		fmt.Println("breakpoint7")
 		//fmt.Println(len(message))
 		payload = message[headerLength:len(message)-256]
 		fmt.Println("breakpoint8")
 		signature = message[len(message)-256:]
 
-	case Reply:
+	/*case Reply://here problem
 		payload = message[headerLength:]
-		signature = []byte{}
+		signature = []byte{}*/
 	}
 	fmt.Println("breakpoint9")
 	return header, payload, signature
