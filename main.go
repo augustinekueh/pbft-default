@@ -13,7 +13,6 @@ var nodeCount int
 //var nodeTable map[string]string
 var jnodes *JsonNodes
 var ClientNode *JsonNode
-//var PrimaryNode *JsonNode
 
 //create slices of JsonNode
 type JsonNodes struct{
@@ -26,11 +25,12 @@ type JsonNode struct{
 	URL string `json:"url"`
 }
 
-func main(){
+func Operation(){
 	fmt.Println("Hello World")
 
 	//Retrieve nodes' information from a json file
-	jsonFile, err := os.Open("node.json")
+	//change the total network nodes based on the numbering json file; i.e. nodes = 4 
+	jsonFile, err := os.Open("node_4.json")
 
 	if err != nil{
 		fmt.Println(err)
@@ -55,9 +55,8 @@ func main(){
 	
 	//pre-generate RSA keys; public and private 
 	genKeys(len(jnodes.JsonNodes))
-	fmt.Println("endl")
-	//terminal input condition
 	
+	//terminal input condition
 	if len(os.Args)!=2{
 		log.Panic("command insertion error!")
 	}
@@ -66,7 +65,7 @@ func main(){
 	//client
 	if termID == "C0"{
 		if addr, ok := nodeTable[termID]; ok{
-		fmt.Println(addr)
+		//fmt.Println(addr)
 		ClientNode = &JsonNode{
 			termID,
 			nodeTable[termID],
@@ -74,20 +73,18 @@ func main(){
 		client := newClient(termID, addr)
 		client.Initiate()
 		} else{
-			fmt.Println(termID)
-			fmt.Println(nodeTable[termID])
 			log.Fatal("connection failed!")
 		}
 	//node
 	} else if addr, ok := nodeTable[termID]; ok{	
-		fmt.Println(addr)
 		server := newServer(termID, addr, nodeTable)
 		server.Initiate()
-		//server.memberNodes()
 	} else {
-		fmt.Println(termID)
-		fmt.Println(nodeTable[termID])
 		log.Fatal("connection failed!!")
 	}
 	select {}
+}
+
+func main(){
+	Operation()
 }

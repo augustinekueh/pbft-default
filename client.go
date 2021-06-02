@@ -11,7 +11,6 @@ import(
 	"errors"
 	"fmt"
 	"io/ioutil"
-	//"math/rand"
 	"net"
 	"log"
 	"time"
@@ -23,8 +22,7 @@ type Client struct{
 	pubKey	 []byte	
 	privKey	 []byte
 	message	 *RequestMsg
-	replyLog map[int]*ReplyMsg
-	//mutex	 sync.mutex
+	replyLog map[string]*ReplyMsg
 }
 
 func newClient(clientID string, addr string) *Client{
@@ -34,12 +32,14 @@ func newClient(clientID string, addr string) *Client{
 	c.pubKey = c.getPubKey(clientID)
 	c.privKey = c.getPrivKey(clientID)
 	c.message = nil 
-	c.replyLog = make(map[int]*ReplyMsg)
+	c.replyLog = make(map[string]*ReplyMsg)
 
 	return c
 }
 
 func (c *Client) Initiate(){
+	start := time.Now()
+	fmt.Println(start)
 	c.sendRequest()
 	ln, err := net.Listen("tcp", c.addr)
 	if err != nil{
@@ -53,6 +53,8 @@ func (c *Client) Initiate(){
 		}
 
 		go c.handleConnection(conn)
+		duration := time.Since(start)
+		fmt.Printf("Execution time: %v\n", duration)
 	}
 }
 
@@ -64,19 +66,11 @@ func (c *Client) handleConnection(conn net.Conn){
 	}
 	switch header{
 	case Reply:
-		/*rep := new(ReplyMsg)
-		err := json.Unmarshal(payload, &rep)
-		if err != nil{
-			fmt.Println("breakpointxx/reply")
-			//log.Panic(err)
-			fmt.Printf("error happened: %d", err)
-			return
-		}*/
 		c.handleReply(payload)
+		return
 	}
 }
 
-//rewrite
 func (c *Client) sendRequest(){
 	req := fmt.Sprintf("Transaction need to be approved")
 
@@ -87,9 +81,7 @@ func (c *Client) sendRequest(){
 	r.CMessage.Request = req
 	r.CMessage.Digest = generateDigest(req)
 	r.CAddr = c.addr
-	//r.Signature = c.signMessage(generateDigest(req), c.privKey)
 	
-	fmt.Println(r)
 	sig, err := c.signMessage(generateDigest(req), c.privKey)
 	if err != nil{
 		log.Panic(err)
@@ -102,10 +94,6 @@ func (c *Client) sendRequest(){
 		log.Panic(err)
 	}
 
-	//fmt.Println(string(rp))
-	//here no need mergemsg 
-	//packet := mergeMsg(Request, rp)
-	fmt.Println("breakpoint")
 	primaryNode := findPrimaryN()
 	//add mergemsg
 	send(mergeMsg(Request, rp, sig), primaryNode.URL)
@@ -113,19 +101,18 @@ func (c *Client) sendRequest(){
 }
 
 func (c* Client) handleReply(payload []byte){
-	//var replyMsg ReplyMsg
 	rep := new(ReplyMsg)
 	err := json.Unmarshal(payload, &rep)
 	fmt.Println(rep)
+	c.replyLog[rep.NodeID] = rep
 	rlen := len(c.replyLog)
+	fmt.Println(rlen)
 	if err != nil{
-		fmt.Println("breakpoint/reply")
-		//log.Panic(err)
 		fmt.Printf("error happened: %d", err)
 		return
 	}
 	if rlen >= countTotalMsgAmount(){
-		fmt.Println("requst approved!")
+		fmt.Println("request approved!")
 	}
 }
 

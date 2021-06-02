@@ -53,7 +53,6 @@ func newNode(nodeID string, addr string, nodeTable map[string]string)*Node{
 	n.mutex = sync.Mutex{}
 	n.nodeTable = nodeTable
 	n.requestPool = make(map[string]*RequestMsg)
-	//here prepareConfirmCount
 	n.prepareConfirmCount = make(map[string]map[string]bool)
 	n.commitConfirmCount = make(map[string]map[string]bool)
 	n.isCommitBroadcast = make(map[string]bool)
@@ -102,9 +101,7 @@ func (n *Node) addSID() int{
 func (n *Node) handleMsg(){
 	for{
 		data := <- n.msgQueue 
-		fmt.Println("breakpoint")
 		header, payload, sig := splitMsg(data)
-		fmt.Println("breakpoint10")
 		switch Header(header){
 		case Request:
 			n.handleRequest(payload, sig)
@@ -119,24 +116,17 @@ func (n *Node) handleMsg(){
 }
 
 func (n *Node) handleRequest(payload []byte, sig []byte){
-	//create instance of requestmsg
 	r := new(RequestMsg)
 	//convert json to struct format
-	fmt.Println("breakpoint11")
 	err := json.Unmarshal(payload, r)
 	fmt.Println(r)
 	if err != nil{
 		log.Panic(err)
 	}
-	fmt.Printf("sequenceID: %d\n", n.sequenceID)
 	n.addSID()
-	fmt.Printf("sequenceID: %d\n", n.sequenceID)
-	//obtain digest of requestmsg
-	fmt.Println("breakpoint12")
 	digest := createDigest(*r)
 	digestmsg := generateDigest(r.CMessage.Request)
 	//verify digest
-	//did not provide client message digest
 	vdig := verifyDigest(digestmsg, r.CMessage.Digest)
 	fmt.Println(vdig)
 	if vdig == false{
@@ -157,7 +147,6 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 		viewID,
 		n.sequenceID,
 		strDigest,
-		//signature,
 	} 
 	//convert struct to json format
 	done, err := json.Marshal(prePreparePacket)
@@ -173,8 +162,7 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 	n.msgLog.preprepareLog[prePreparePacket.Digest][n.nodeID] = true
 	n.mutex.Unlock()
 
-	n.broadcast(message)//haven't finished the broadcast method
-	fmt.Println(message)
+	n.broadcast(message)
 	n.sequenceID--
 }
 
@@ -191,18 +179,14 @@ func (n *Node) handlePrePrepare(payload []byte, sig []byte){
 	//decode string to byte format for signing
 	digestByte, _ := hex.DecodeString(pp.Digest)
 	//set approval conditions
-	fmt.Printf("sequenceID: %d\n", n.sequenceID)
-	fmt.Printf("sequenceID (pp): %d\n", pp.SequenceID)
 	if digest := createDigest(pp.Request); hex.EncodeToString(digest[:]) != pp.Digest{
 		fmt.Println("digest not match, further application rejected!")
 	} else if n.sequenceID+1 != pp.SequenceID{
 		fmt.Println("incorrect sequence, further application rejected!")
-		fmt.Println("breakpoint/problem")
 	} else if !n.verifySignature(digestByte, sig, primaryNodePubKey){
 		fmt.Println("key verification failed, further application rejected!")
 	} else {
 		//success
-		fmt.Printf("sequenceID: %d\n", n.sequenceID)
 		n.sequenceID = pp.SequenceID
 		fmt.Println("stored into message pool")
 		n.requestPool[pp.Digest] = &pp.Request
@@ -215,7 +199,6 @@ func (n *Node) handlePrePrepare(payload []byte, sig []byte){
 			pp.SequenceID,
 			pp.Digest, 
 			n.nodeID, 
-			//signature,
 		}
 		done, err := json.Marshal(preparePacket)
 		if err != nil{
@@ -251,9 +234,7 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 		fmt.Println("key verification failed, further application rejected!")
 	} else{
 		//success
-		fmt.Println("breakpoint/prepare")
 		n.setPrepareConfirmMap(pre.Digest, pre.NodeID, true)
-		fmt.Println("breakpoint2/prepare")
 		count := 0
 		for range n.prepareConfirmCount[pre.Digest]{
 			count++
@@ -264,7 +245,6 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 		} else{
 			specifiedCount = (nodeCount / 3 * 2) -1
 		}
-		//n.mutex.Lock()
 
 		if count >= specifiedCount && !n.isCommitBroadcast[pre.Digest]{
 			fmt.Println("minimum (prepare) consensus achieved!")
@@ -277,7 +257,6 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 				pre.Digest,
 				pre.SequenceID,
 				n.nodeID,
-				//signature,
 			}
 			done, err := json.Marshal(c)
 			if err != nil{
@@ -287,10 +266,7 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 			
 			message := mergeMsg(Commit, done, signature)
 			//put commit msg into commit log
-			fmt.Println("breakpoint3/prepare")
-			//problem here
-			n.mutex.Lock()//<---
-			fmt.Println("breakpoint4/prepare")
+			n.mutex.Lock()
 			if n.msgLog.commitLog[c.Digest] == nil{
 				n.msgLog.commitLog[c.Digest] = make(map[string]bool)
 			}
@@ -301,7 +277,6 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 			n.isCommitBroadcast[pre.Digest] = true
 			fmt.Println("committed successfully")
 			}
-		//n.mutex.Unlock()
 	}
 }
 
@@ -339,10 +314,8 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 			d := ReplyMsg{
 				viewID,
 				int(time.Now().Unix()),
-				//clientID,
 				n.nodeID,
 				"success",
-				//signature,
 			}
 
 			fmt.Println(d)
@@ -354,35 +327,12 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 			fmt.Println("broadcasting results..")
 			message := mergeMsg(Reply, done, signature)
 			send(message, n.requestPool[cmt.Digest].CAddr)
-			//localMessagePool = append(localMessagePool, n.requestPool[cmt.Digest].CMessage)
-			//info := n.nodeID + n.requestPool[cmt.Digest].CMessage.Request
-			//fmt.Println(info)
-			//fmt.Println("replying client..")
-			//send([]byte(info), n.messagePool[cmt.Digest].ClientAddr)
 			n.isReply[cmt.Digest] = true
 			fmt.Println("successfully replied!")
 		}
 		n.mutex.Unlock()
 	}
 }
-
-/*pending methods
-func (n *Node) handleCommited(){
-
-}
-
-func (n *Node) handleCheckpoint(){
-
-}
-
-func (n *Node) handleViewChange(){
-
-}
-
-func (n *Node) handleNewView(){
-
-}
-*/
 
 func (n *Node) verifyRequestDigest(digest string) error{
 	n.mutex.Lock()
@@ -394,32 +344,6 @@ func (n *Node) verifyRequestDigest(digest string) error{
 	n.mutex.Unlock()
 	return nil
 }
-
-/*
-func (n *Node) findVerifiedPrepareMsgCount(digest string) (int, error){
-	sum := 0
-	n.mutex.Lock()
-	for _, exist := range n.msgLog.prepareLog[digest]{
-		if exist == true{
-			sum++
-		}
-	}
-	n.mutex.Unlock()
-	return sum, nil
-}
-
-func (n *Node) findVerifiedCommitMsgCount(digest string) (int, error){
-	sum := 0
-	n.mutex.Lock()
-	for _, exist := range n.msgLog.commitLog[digest]{
-		if exist == true{
-			sum++
-		}
-	}
-	n.mutex.Unlock()
-	return sum, nil
-}
-*/
 
 func (n *Node) broadcast(data []byte){
 	for _, i := range n.nodeTable{
@@ -463,7 +387,7 @@ func (n *Node) getPrivKey(nodeID string) []byte {
 
 func (n *Node) setPrepareConfirmMap(x, y string, b bool){
 	if _, ok := n.prepareConfirmCount[x]; !ok{
-		n.prepareConfirmCount[x] = make(map[string]bool)//problem
+		n.prepareConfirmCount[x] = make(map[string]bool)
 		fmt.Println(x)
 		fmt.Println(y)
 	}

@@ -1,9 +1,5 @@
 package main
 
-import(
-	"fmt"
-)
-
 //global variables
 type Header string
 const headerLength = 12
@@ -41,8 +37,6 @@ type PrePrepareMsg struct{
 	SequenceID	int 		`json:"sequenceID"`
 	//digest for message, m
 	Digest		string		`json:"digest"`
-	//Signature	[]byte		`json:"signature"`
-	//NodeID		string		`json: "nodeID"`
 }
 
 //<PREPARE, v, n, d, i> with digital signature, σ
@@ -51,8 +45,7 @@ type PrepareMsg struct{
 	SequenceID	int		`json:"sequenceID"`
 	Digest		string 	`json:"digest"`
 	//nodeID = the current/sender ID of this prepare msg
-	NodeID		string	`json:"nodeID"`
-	//Signature	[]byte	`json:"signature"`	
+	NodeID		string	`json:"nodeID"`	
 }
 
 //<COMMIT, v, n, d, i> with digital signature, σ
@@ -61,21 +54,16 @@ type CommitMsg struct{
 	Digest		string 	`json:"digest"`
 	SequenceID	int		`json:"sequenceID"`
 	NodeID		string 	`json:"nodeID"`
-	//Signature	[]byte	`json:"signature"`
 }
 
 //<RESULT, v, t, c, i, r>
 type ReplyMsg struct{
 	View		int	   `json:"view"`
 	Timestamp	int	   `json:"timestamp"`
-	//ClientID	string `json:"clientID"`
 	NodeID		string `json:"nodeID"`
 	Result		string `json:"result"`
-	//Signature	[]byte	`json:"signature"`
 }
 
-
-//need to add signature
 func mergeMsg(header Header, payload []byte, sig []byte) []byte{
 	first := make([]byte, headerLength)
 	for i, v := range []byte(header){
@@ -90,37 +78,24 @@ func mergeMsg(header Header, payload []byte, sig []byte) []byte{
 }
 
 func splitMsg(message []byte) (Header, []byte, []byte){
-	fmt.Println("breakpoint2")
 	var header		Header
 	var payload		[]byte
 	var signature	[]byte 
 
-	fmt.Println("breakpoint3")
 	headerBytes := message[:headerLength]
 	newHeaderBytes := make([]byte, 0)
 
-	fmt.Println("breakpoint4")
 	for _, h := range headerBytes{
 		if h != byte(0){
 			newHeaderBytes = append(newHeaderBytes, h)
 		}
 	}
 
-	fmt.Println("breakpoint5")
 	header = Header(newHeaderBytes)
-	fmt.Println("breakpoint6")
 	switch header{
 	case Request, PrePrepare, Prepare, Commit, Reply:
-		fmt.Println("breakpoint7")
-		//fmt.Println(len(message))
 		payload = message[headerLength:len(message)-256]
-		fmt.Println("breakpoint8")
 		signature = message[len(message)-256:]
-
-	/*case Reply://here problem
-		payload = message[headerLength:]
-		signature = []byte{}*/
 	}
-	fmt.Println("breakpoint9")
 	return header, payload, signature
 }

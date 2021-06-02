@@ -16,11 +16,7 @@ import(
 	"net"
 	"os"
 	"path/filepath"
-	//"strconv"
 )
-
-//TOTAL METHODS: 10
-//hashcode
 
 func createDigest(request RequestMsg) []byte{
 	bmsg, err := json.Marshal(request)
@@ -80,8 +76,6 @@ func (n *Node) verifySignature(data, sig, keyBytes []byte) bool{
 }
 
 func send(data []byte, addr string){
-	fmt.Println(data, addr)
-	fmt.Println("breakpoint")
 	conn, err := net.Dial("tcp", addr)
 	if err != nil{
 		log.Println("connect error:", err)
@@ -148,26 +142,6 @@ func genKeys(nodes int){
 					panic(err)
 				}
 			}
-
-			//create public keys
-			/*pubFileName := "Keys/N" + strconv.Itoa(i) + "/N" + strconv.Itoa(i) + "_RSA_PUB"
-			pubFile, err := os.OpenFile(pubFileName, os.O_RDWR|os.O_CREATE, 0644)
-			if err != nil{
-				log.Panic(err)
-			}
-			defer pubFile.Close()
-			pubFile.Write(pub)
-
-			//create private keys
-			privFileName := "Keys/N" + strconv.Itoa(i) + "/N" + strconv.Itoa(i) + "_RSA_PRIV"
-			privFile, err := os.OpenFile(privFileName, os.O_RDWR|os.O_CREATE, 0644)
-			if err != nil{
-				log.Panic(err)
-			}
-			defer privFile.Close()
-			privFile.Write(priv)
-		}
-		fmt.Println("all keys created successfully!")*/
 		}
 	}
 }
