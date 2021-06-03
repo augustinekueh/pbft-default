@@ -31,6 +31,7 @@ type Node struct{
 	isCommitBroadcast	map[string]bool
 	isReply				map[string]bool
 	msgLog		 		*MsgLog
+	//score				int
 }
 
 type MsgLog struct{
@@ -63,6 +64,7 @@ func newNode(nodeID string, addr string, nodeTable map[string]string)*Node{
 		make(map[string]map[string]bool),
 		make(map[string]bool),
 	}
+	//n.score = 0.5
 	return n
 }
 
@@ -101,6 +103,7 @@ func (n *Node) addSID() int{
 func (n *Node) handleMsg(){
 	for{
 		data := <- n.msgQueue 
+		//put here to request latest consensus group
 		header, payload, sig := splitMsg(data)
 		switch Header(header){
 		case Request:
@@ -329,6 +332,9 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 			send(message, n.requestPool[cmt.Digest].CAddr)
 			n.isReply[cmt.Digest] = true
 			fmt.Println("successfully replied!")
+			//put here to submit report card to the moderator to calculate node trust
+			calculateTrust(n.nodeTable)
+
 		}
 		n.mutex.Unlock()
 	}

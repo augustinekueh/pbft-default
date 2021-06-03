@@ -2,8 +2,6 @@ package main
 
 import(
 	"fmt"
-	"io/ioutil"
-	"net"
 )
 
 var urlName = "localhost:%d"
@@ -27,28 +25,7 @@ func newServer(nodeId , addr string, nodeTable map[string]string) *Server{
 
 func (s *Server) Initiate(){
 	s.node.Initiate()
-	ln, err := net.Listen("tcp", s.url)
-	if err != nil{
-		panic(err)
-	}
-	defer ln.Close()
-	fmt.Printf("server start at %s\n", s.url)
-
-	for{
-		conn, err := ln.Accept()
-		if err != nil{
-			panic(err)
-		}
-		go s.handleConnection(conn)
-	}
 }
 
-func (s *Server) handleConnection(conn net.Conn){
-	req, err := ioutil.ReadAll(conn)
-	if err != nil{
-		panic(err)
-	}
-	s.node.msgQueue <- req
-}
 
 

@@ -16,6 +16,8 @@ import(
 	"time"
 )
 
+const delay = 5 * time.Second
+
 type Client struct{
 	clientID string
 	addr	 string
@@ -38,9 +40,11 @@ func newClient(clientID string, addr string) *Client{
 }
 
 func (c *Client) Initiate(){
-	start := time.Now()
-	fmt.Println(start)
-	c.sendRequest()
+	//start := time.Now()
+	//fmt.Println(start)
+	ping := func(){
+		c.sendRequest()}
+	c.transactionSchedule(ping, delay)
 	ln, err := net.Listen("tcp", c.addr)
 	if err != nil{
 		log.Panic(err)
@@ -53,8 +57,8 @@ func (c *Client) Initiate(){
 		}
 
 		go c.handleConnection(conn)
-		duration := time.Since(start)
-		fmt.Printf("Execution time: %v\n", duration)
+		//duration := time.Since(start)
+		//fmt.Printf("Execution time: %v\n", duration)
 	}
 }
 
@@ -165,4 +169,25 @@ func (c* Client) signMessage(data []byte, keyBytes []byte) ([]byte, error){
 		panic(err)
 	}
 	return signature, err
+}
+
+func (c* Client) transactionSchedule(ping func(), delay time.Duration)chan bool{
+	stop := make(chan bool)
+
+	go func(){
+		for{
+			start := time.Now()
+			fmt.Println(start)
+			ping()	
+			select{
+			case <- time.After(delay):
+				c.replyLog = make(map[string]*ReplyMsg) // clear message log
+				duration := time.Since(start) - delay
+				fmt.Printf("Execution time: %v\n", duration)
+			case <- stop:
+				return
+			}
+		}
+	}()
+	return stop
 }
