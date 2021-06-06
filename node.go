@@ -31,6 +31,7 @@ type Node struct{
 	isCommitBroadcast	map[string]bool
 	isReply				map[string]bool
 	msgLog		 		*MsgLog
+	//score				int
 }
 
 type MsgLog struct{
@@ -45,8 +46,8 @@ func newNode(nodeID string, addr string, nodeTable map[string]string)*Node{
 	n := new(Node)
 	n.nodeID = nodeID
 	n.addr = addr
-	n.pubKey = n.getPubKey(nodeID)
-	n.privKey = n.getPrivKey(nodeID)
+	n.pubKey = getPubKey(nodeID)
+	n.privKey = getPrivKey(nodeID)
 	n.sequenceID = 0
 	n.view = viewID
 	n.msgQueue = make(chan []byte)
@@ -63,6 +64,7 @@ func newNode(nodeID string, addr string, nodeTable map[string]string)*Node{
 		make(map[string]map[string]bool),
 		make(map[string]bool),
 	}
+	//n.score = 0.5
 	return n
 }
 
@@ -101,6 +103,7 @@ func (n *Node) addSID() int{
 func (n *Node) handleMsg(){
 	for{
 		data := <- n.msgQueue 
+		//put here to request latest consensus group
 		header, payload, sig := splitMsg(data)
 		switch Header(header){
 		case Request:
@@ -174,7 +177,7 @@ func (n *Node) handlePrePrepare(payload []byte, sig []byte){
 		log.Panic(err)
 	}
 	//get primary node's public key for verification
-	primaryNodePubKey := n.getPubKey(findPrimaryN().ID)//at client.go
+	primaryNodePubKey := getPubKey(findPrimaryN().ID)//at client.go
 	
 	//decode string to byte format for signing
 	digestByte, _ := hex.DecodeString(pp.Digest)
@@ -223,7 +226,7 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 	if err != nil{
 		log.Panic(err)
 	}
-	msgNodePubKey := n.getPubKey(pre.NodeID)
+	msgNodePubKey := getPubKey(pre.NodeID)
 	//decode string to byte format 
 	digestByte, _ := hex.DecodeString(pre.Digest)
 	if _, ok := n.requestPool[pre.Digest]; !ok{
@@ -287,7 +290,7 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 		log.Panic(err)
 	}
 
-	msgNodePubKey := n.getPubKey(cmt.NodeID)
+	msgNodePubKey := getPubKey(cmt.NodeID)
 	digestByte, _ := hex.DecodeString(cmt.Digest)
 
 	if _, ok := n.prepareConfirmCount[cmt.Digest]; !ok{
@@ -329,6 +332,17 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 			send(message, n.requestPool[cmt.Digest].CAddr)
 			n.isReply[cmt.Digest] = true
 			fmt.Println("successfully replied!")
+
+			//GROUP ALGORITHM
+			//put here to submit report card to the moderator to calculate node trust
+			//unt := updateNodeTable(n.nodeTable)
+			//nil the nodeTable and initialize to unt
+			//n.nodeTable = make(map[string]string)
+			//n.nodeTable = unt
+
+			//LAYER ALGORITHM
+			//hierarchy := formLayer(n.nodeTable)
+			//fmt.Println("results: ", hierarchy)
 		}
 		n.mutex.Unlock()
 	}
@@ -365,24 +379,6 @@ func (n* Node) reply(data []byte, cliaddr string){
 		log.Fatal(err)
 	}
 	conn.Close()
-}
-
-func (n *Node) getPubKey(nodeID string) []byte {
-	key, err := ioutil.ReadFile("Keys/" + nodeID + "_pub")
-
-	if err != nil{
-		log.Panic(err)
-	}
-	return key
-}
-
-func (n *Node) getPrivKey(nodeID string) []byte {
-	key, err := ioutil.ReadFile("Keys/" + nodeID + "_priv")
-
-	if err != nil{
-		log.Panic(err)
-	}
-	return key
 }
 
 func (n *Node) setPrepareConfirmMap(x, y string, b bool){
