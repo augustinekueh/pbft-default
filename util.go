@@ -16,6 +16,7 @@ import(
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 func createDigest(request RequestMsg) []byte{
@@ -28,9 +29,18 @@ func createDigest(request RequestMsg) []byte{
 }
 
 func generateDigest(req string) []byte{
-	bmsg, _ := json.Marshal(req)
+	bmsg, err := json.Marshal(req)
+	if err != nil{
+		log.Panic(err)
+	}
 	hash := sha256.Sum256(bmsg)
 	return hash[:] 
+}
+
+func verifyDigest(msg []byte, digest []byte) bool{
+	fmt.Println(hex.EncodeToString(msg))
+	fmt.Println(hex.EncodeToString(digest))
+	return hex.EncodeToString(msg) == hex.EncodeToString(digest)
 }
 
 //sign message using a private key
@@ -92,16 +102,9 @@ func countTotalFaultNodes() int{
 	return (nodeCount-1) / 3
 }
 
-
 func countTotalMsgAmount() int{
 	f := countTotalFaultNodes()
 	return f + 1
-}
-
-func verifyDigest(msg []byte, digest []byte) bool{
-	fmt.Println(hex.EncodeToString(msg))
-	fmt.Println(hex.EncodeToString(digest))
-	return hex.EncodeToString(msg) == hex.EncodeToString(digest)
 }
 
 //generate keys beforehand 
@@ -174,6 +177,24 @@ func genPair() (pubKey, privKey []byte){
 	return pubKey, privKey
 }
 
+func getPubKey(memberID string) []byte {
+	key, err := ioutil.ReadFile("Keys/" + memberID + "_pub")
+
+	if err != nil{
+		log.Panic(err)
+	}
+	return key
+}
+
+func getPrivKey(memberID string) []byte {
+	key, err := ioutil.ReadFile("Keys/" + memberID + "_priv")
+
+	if err != nil{
+		log.Panic(err)
+	}
+	return key
+}
+
 //search for filepath and return a bool
 func isExist(path string) bool{
 	_, err := os.Stat(path)
@@ -188,4 +209,24 @@ func isExist(path string) bool{
 		return false
 	}
 	return true
+}
+
+func updateNodeTable(nodeTable map[string]string)map[string]string{
+	fmt.Println("calculating node trust...")
+
+	consensusTable := make(map[string]string)
+	for k, v := range nodeTable{
+		if k != "C0"{
+			strnum := string(k[1:])
+			if num, err := strconv.Atoi(strnum); err == nil{
+				fmt.Printf("Consensus Nodes: N%d\n", num)
+				if num % 2 == 0{
+					consensusTable[k] = v
+				} 
+			} else{
+				log.Panic(err)
+			}
+		}
+	}
+	return consensusTable
 }
