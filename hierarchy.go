@@ -8,6 +8,7 @@ var count int = 0
 var index int = 0
 var whole int = 0
 
+//!!bring in nodeID to make the comparison. then send the relevant grouptable back
 func formLayer(nodeTable map[string]string) map[int]map[int]map[int]map[string]string{
 	//have not initialized inner map		    level   group   node 
 	fmt.Println("layering...")
@@ -29,6 +30,10 @@ func formLayer(nodeTable map[string]string) map[int]map[int]map[int]map[string]s
 			lnt[index] = make(map[int]map[string]string)
 			lnt[index] = gnt
 			index++
+			/*if(nodeID == gnt[count] or k){
+				nodeTable = gnt
+				return nodeTable
+			}*/
 		} 
 		if index == 4 {
 			index = 0
