@@ -341,8 +341,9 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 			//n.nodeTable = unt
 
 			//LAYER ALGORITHM
-			//hierarchy := formLayer(n.nodeTable)
-			//fmt.Println("results: ", hierarchy)
+			hierarchy := formLayer(n.nodeTable, n.nodeID)
+			fmt.Println("results: ", hierarchy)
+			n.nodeTable = hierarchy
 		}
 		n.mutex.Unlock()
 	}
