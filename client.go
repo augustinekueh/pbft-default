@@ -18,9 +18,10 @@ type Client struct{
 	privKey	 []byte
 	message	 *RequestMsg
 	replyLog map[string]*ReplyMsg
+	primaryTable map[string]string
 }
 
-func newClient(clientID string, addr string) *Client{
+func newClient(clientID string, addr string, primaryTable map[string]string) *Client{
 	c := new(Client)
 	c.clientID = clientID
 	c.addr = addr
@@ -28,6 +29,7 @@ func newClient(clientID string, addr string) *Client{
 	c.privKey = getPrivKey(clientID)
 	c.message = nil 
 	c.replyLog = make(map[string]*ReplyMsg)
+	c.primaryTable = primaryTable
 
 	return c
 }
@@ -35,6 +37,7 @@ func newClient(clientID string, addr string) *Client{
 func (c *Client) Initiate(){
 	//start := time.Now()
 	//fmt.Println(start)
+	fmt.Println("breakpoint")
 	ping := func(){
 		c.sendRequest()}
 	c.transactionSchedule(ping, delay)
@@ -90,10 +93,13 @@ func (c *Client) sendRequest(){
 	if err != nil{
 		log.Panic(err)
 	}
-
-	primaryNode := findPrimaryN()
+	fmt.Println("breakpoint2")
+	//primaryNode := findPrimaryN()
 	//add mergemsg
-	send(mergeMsg(Request, rp, sig), primaryNode.URL)
+	for _, v := range c.primaryTable{
+		fmt.Println(v)
+		send(mergeMsg(Request, rp, sig), v)
+	}
 	c.message = r
 }
 
@@ -113,7 +119,7 @@ func (c* Client) handleReply(payload []byte){
 	}
 }
 
-func findPrimaryN() JsonNode{
+func findPrimaryN() JsonNode{ //need to improve here; probably grab data from the json file (primary nodes) or at main.go.
 	var primaryNode JsonNode = JsonNode{
 		"N0",
 		"127.0.0.1:8080",

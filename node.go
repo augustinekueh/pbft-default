@@ -340,7 +340,7 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 			//n.nodeTable = make(map[string]string)
 			//n.nodeTable = unt
 
-			//LAYER ALGORITHM
+			//LAYER ALGORITHM -- probably should be at the beginning of the phase
 			//hierarchy := formLayer(n.nodeTable, n.nodeID)
 			//fmt.Println("results: ", hierarchy)
 			//n.nodeTable = hierarchy

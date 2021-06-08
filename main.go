@@ -42,10 +42,21 @@ func Operation(){
 
 	byteValue, _ := ioutil.ReadAll(jsonFile)
 	nodeTable := make(map[string]string)
+	primaryTable := make(map[string]string)
 	json.Unmarshal(byteValue, &jnodes)
+	count := 0
 
 	for i:=0; i<len(jnodes.JsonNodes); i++{
 		nodeTable[jnodes.JsonNodes[i].ID] = jnodes.JsonNodes[i].URL
+		if count == 0{
+			if jnodes.JsonNodes[i].ID != "C0"{
+				primaryTable[jnodes.JsonNodes[i].ID] = jnodes.JsonNodes[i].URL
+			}
+		}
+		count++
+		if count == 4{
+			count = 0
+		}
 	}
 
 	for k,v := range nodeTable{
@@ -70,7 +81,7 @@ func Operation(){
 			termID,
 			nodeTable[termID],
 		}
-		client := newClient(termID, addr)
+		client := newClient(termID, addr, primaryTable)
 		client.Initiate()
 		} else{
 			log.Fatal("connection failed!")
