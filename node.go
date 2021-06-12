@@ -32,6 +32,7 @@ type Node struct{
 	isReply				map[string]bool
 	msgLog		 		*MsgLog
 	//score				int
+	primary			    string
 }
 
 type MsgLog struct{
@@ -65,10 +66,19 @@ func newNode(nodeID string, addr string, nodeTable map[string]string)*Node{
 		make(map[string]bool),
 	}
 	//n.score = 0.5
+	n.primary = ""
 	return n
 }
 
 func (n *Node) Initiate(){
+	hierarchy, primary := formLayer(n.nodeTable, n.nodeID)
+	fmt.Println("results: ", hierarchy)
+	fmt.Println("primary: ", primary)
+	n.nodeTable = hierarchy
+	n.primary = primary
+	fmt.Println("NodeTable: " , n.nodeTable)
+	fmt.Println("Primary Node: " , n.primary)
+	
 	go n.handleMsg()
 	ln, err := net.Listen("tcp", n.addr)
 	if err != nil{
@@ -122,7 +132,7 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 	r := new(RequestMsg)
 	//convert json to struct format
 	err := json.Unmarshal(payload, r)
-	fmt.Println(r)
+	fmt.Println("request packet: " , r)
 	if err != nil{
 		log.Panic(err)
 	}
@@ -151,6 +161,7 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 		n.sequenceID,
 		strDigest,
 	} 
+	
 	//convert struct to json format
 	done, err := json.Marshal(prePreparePacket)
 	if err != nil{
@@ -164,34 +175,35 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 	}
 	n.msgLog.preprepareLog[prePreparePacket.Digest][n.nodeID] = true
 	n.mutex.Unlock()
-
+	
 	n.broadcast(message)
 	n.sequenceID--
 }
 
 func (n *Node) handlePrePrepare(payload []byte, sig []byte){
 	//create instance of preprepare
+	fmt.Println("breakpoint")
 	pp := new(PrePrepareMsg)
 	err := json.Unmarshal(payload, pp)
 	if err != nil{
 		log.Panic(err)
 	}
 	//get primary node's public key for verification
-	primaryNodePubKey := getPubKey(findPrimaryN().ID)//at client.go
+	primaryNodePubKey := getPubKey(n.primary/*findPrimaryN().ID*/)//at client.go
 	
 	//decode string to byte format for signing
 	digestByte, _ := hex.DecodeString(pp.Digest)
 	//set approval conditions
 	if digest := createDigest(pp.Request); hex.EncodeToString(digest[:]) != pp.Digest{
-		fmt.Println("digest not match, further application rejected!")
+		fmt.Println("preprepare phase: digest not match, further application rejected!")
 	} else if n.sequenceID+1 != pp.SequenceID{
-		fmt.Println("incorrect sequence, further application rejected!")
+		fmt.Println("preprepare phase: incorrect sequence, further application rejected!")
 	} else if !n.verifySignature(digestByte, sig, primaryNodePubKey){
-		fmt.Println("key verification failed, further application rejected!")
+		fmt.Println("preprepare phase: key verification failed, further application rejected!")
 	} else {
 		//success
 		n.sequenceID = pp.SequenceID
-		fmt.Println("stored into message pool")
+		fmt.Println("preprepare phase: stored into message pool")
 		n.requestPool[pp.Digest] = &pp.Request
 		signature, err := signMessage(digestByte, n.privKey)
 		if err != nil{
@@ -221,6 +233,7 @@ func (n *Node) handlePrePrepare(payload []byte, sig []byte){
 }
 
 func (n *Node) handlePrepare(payload []byte, sig []byte){
+	fmt.Println("breakpoint2")
 	pre := new(PrepareMsg)
 	err := json.Unmarshal(payload, pre)
 	if err != nil{
@@ -230,11 +243,11 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 	//decode string to byte format 
 	digestByte, _ := hex.DecodeString(pre.Digest)
 	if _, ok := n.requestPool[pre.Digest]; !ok{
-		fmt.Println("unable to retrieve digest, further application rejected!")
+		fmt.Println("prepare phase: unable to retrieve digest, further application rejected!")
 	} else if n.sequenceID != pre.SequenceID{
-		fmt.Println("incorrect sequence, further application rejected!")
+		fmt.Println("prepare phase: incorrect sequence, further application rejected!")
 	} else if !n.verifySignature(digestByte, sig, msgNodePubKey){
-		fmt.Println("key verification failed, further application rejected!")
+		fmt.Println("prepare phase: key verification failed, further application rejected!")
 	} else{
 		//success
 		n.setPrepareConfirmMap(pre.Digest, pre.NodeID, true)
@@ -243,12 +256,13 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 			count++
 		}
 		specifiedCount := 0
-		if n.nodeID == "N0"{
-			specifiedCount = nodeCount / 3 * 2
+		fmt.Println("nodecount per group: " , newNodeCount)
+		if n.nodeID == n.primary /* "N0" */{
+			specifiedCount = newNodeCount / 3 * 2 //<--problem with nodeCount
 		} else{
-			specifiedCount = (nodeCount / 3 * 2) -1
+			specifiedCount = (newNodeCount / 3 * 2) -1
 		}
-
+		fmt.Println("specifiedCount: ", specifiedCount)
 		if count >= specifiedCount && !n.isCommitBroadcast[pre.Digest]{
 			fmt.Println("minimum (prepare) consensus achieved!")
 			signature, err := signMessage(digestByte, n.privKey)
@@ -265,7 +279,7 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 			if err != nil{
 				log.Panic(err)
 			} 
-			fmt.Println("broadcasting commit message..")
+			fmt.Println("broadcasting (commit) message..")
 			
 			message := mergeMsg(Commit, done, signature)
 			//put commit msg into commit log
@@ -294,11 +308,11 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 	digestByte, _ := hex.DecodeString(cmt.Digest)
 
 	if _, ok := n.prepareConfirmCount[cmt.Digest]; !ok{
-		fmt.Println("unable to retrive digest, further application rejected")
+		fmt.Println("commit phase: unable to retrive digest, further application rejected")
 	} else if n.sequenceID != cmt.SequenceID{
-		fmt.Println("incorrect sequence, further application rejected!")
+		fmt.Println("commit phase: incorrect sequence, further application rejected!")
 	} else if !n.verifySignature(digestByte, sig, msgNodePubKey){
-		fmt.Println("key verification failed, further application rejected!")
+		fmt.Println("commit phase: key verification failed, further application rejected!")
 	} else{
 		n.setCommitConfirmMap(cmt.Digest, cmt.NodeID, true)
 		count := 0
@@ -306,7 +320,7 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 			count++
 		}
 		n.mutex.Lock()
-		if count >= nodeCount / 3 * 2 && !n.isReply[cmt.Digest] && n.isCommitBroadcast[cmt.Digest]{
+		if count >= newNodeCount / 3 * 2 && !n.isReply[cmt.Digest] && n.isCommitBroadcast[cmt.Digest]{
 			fmt.Println("minimum (commit) consensus achieved!")
 
 			signature, err := signMessage(digestByte, n.privKey)
@@ -363,7 +377,7 @@ func (n *Node) verifyRequestDigest(digest string) error{
 func (n *Node) broadcast(data []byte){
 	for _, i := range n.nodeTable{
 		if i != n.nodeID{
-			fmt.Println(i)
+			fmt.Println("node address: " , i)
 			send(data, i)
 		}
 	}
@@ -397,3 +411,12 @@ func (n *Node) setCommitConfirmMap(x, y string, b bool){
 	}
 	n.commitConfirmCount[x][y] = b
 }
+
+//major problem here
+func findPrimaryN() JsonNode{ //need to improve here; probably grab data from the json file (primary nodes) or at main.go.
+ 	var primaryNode JsonNode = JsonNode{
+ 		"N0",
+ 		"127.0.0.1:8080",
+ 	} 
+ 	return primaryNode
+ }

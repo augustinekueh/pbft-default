@@ -4,6 +4,7 @@ import(
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"log"
 	"time"
@@ -37,7 +38,7 @@ func newClient(clientID string, addr string, primaryTable map[string]string) *Cl
 func (c *Client) Initiate(){
 	//start := time.Now()
 	//fmt.Println(start)
-	fmt.Println("breakpoint")
+	//fmt.Println("breakpoint")
 	ping := func(){
 		c.sendRequest()}
 	c.transactionSchedule(ping, delay)
@@ -72,7 +73,7 @@ func (c *Client) handleConnection(conn net.Conn){
 }
 
 func (c *Client) sendRequest(){
-	req := fmt.Sprintf("Transaction need to be approved")
+	req := fmt.Sprintf("%d Transaction need to be approved", rand.Int())
 
 	r := new(RequestMsg)
 	r.Operation = "immediate consensus required, please do it now"
@@ -119,13 +120,13 @@ func (c* Client) handleReply(payload []byte){
 	}
 }
 
-func findPrimaryN() JsonNode{ //need to improve here; probably grab data from the json file (primary nodes) or at main.go.
-	var primaryNode JsonNode = JsonNode{
-		"N0",
-		"127.0.0.1:8080",
-	} 
-	return primaryNode
-}
+// func findPrimaryN() JsonNode{ //need to improve here; probably grab data from the json file (primary nodes) or at main.go.
+// 	var primaryNode JsonNode = JsonNode{
+// 		"N0",
+// 		"127.0.0.1:8080",
+// 	} 
+// 	return primaryNode
+// }
 
 func (c* Client) transactionSchedule(ping func(), delay time.Duration)chan bool{
 	stop := make(chan bool)

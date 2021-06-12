@@ -54,7 +54,7 @@ func Operation(){
 			}
 		}
 		count++
-		if count == 4{
+		if count == 4{//change to determine number of primary nodes; now is only 1 if run the node_8.json
 			count = 0
 		}
 	}

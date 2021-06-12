@@ -10,11 +10,13 @@ var index int = 0
 var whole int = 0
 var match bool = false
 var done bool = false
+var newNodeCount int
 //var lnds LayerNodes
 //var newNodeTable map[string]string
 
 var keyArr []string
 var valArr []string
+var primary string
 
 // type LayerNodes struct{
 // 	LayerNodes []LayerNode `json:"nodes"`
@@ -34,7 +36,7 @@ var valArr []string
 // }
 
 //!!bring in nodeID to make the comparison. then send the relevant grouptable back
-func formLayer(nodeTable map[string]string, nodeID string) map[string]string{
+func formLayer(nodeTable map[string]string, nodeID string) (map[string]string, string){
 	//have not initialized inner map		    level   group   node 
 	fmt.Println("layering...")
 	fmt.Println("nodeID: ", nodeID)
@@ -52,14 +54,14 @@ func formLayer(nodeTable map[string]string, nodeID string) map[string]string{
 	sort.Strings(keys)
 
 	for _, a := range keys{//<-- problem here; ordering issue
-		fmt.Println("ididid: ", a)
+		//fmt.Println("ididid: ", a)
 		if a != "C0"{
 		if count == 0 && !done{
 			newNodeTable = make(map[string]string)
 		}
 		//initialized gnt's inner map
 		gnt[count] = make(map[string]string)
-		fmt.Println(count)
+		//fmt.Println(count)
 		gnt[count][a] = nodeTable[a] 
 		//fmt.Println("breakpoint")
 		keyArr = append(keyArr, a)
@@ -72,7 +74,7 @@ func formLayer(nodeTable map[string]string, nodeID string) map[string]string{
 			//temp := count
 			match = true
 		}
-		fmt.Println(keyArr)
+		//fmt.Println(keyArr)
 		count++
 		if count == 4 {
 			count = 0
@@ -81,10 +83,12 @@ func formLayer(nodeTable map[string]string, nodeID string) map[string]string{
 			lnt[index] = gnt
 			index++
 			if(match){//problem if add more than 4 nodes
-				fmt.Println("breakpoint3")
+				//fmt.Println("breakpoint3")
 				for p := 0; p <= 3; p++{
-					fmt.Println(keyArr[p])//arrangement got problem, probably need to do sorting
+					//fmt.Println(keyArr[p])//arrangement got problem, probably need to do sorting
 					newNodeTable[keyArr[p]] = valArr[p]
+					newNodeCount++
+					primary = keyArr[0]
 					done = true
 					match = false 
 				}
@@ -100,5 +104,5 @@ func formLayer(nodeTable map[string]string, nodeID string) map[string]string{
 		} 
 	}
 }
-	return newNodeTable
+	return newNodeTable, primary
 }
