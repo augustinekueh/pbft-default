@@ -30,7 +30,7 @@ func Operation(){
 
 	//Retrieve nodes' information from a json file
 	//change the total network nodes based on the numbering json file; i.e. nodes = 4 
-	jsonFile, err := os.Open("node_8.json")
+	jsonFile, err := os.Open("node_16.json")
 
 	if err != nil{
 		fmt.Println(err)
@@ -59,8 +59,9 @@ func Operation(){
 		}
 	}
 
+	fmt.Println("Primary Table", primaryTable)
 	for k,v := range nodeTable{
-		fmt.Println(k, "value is", v)
+		fmt.Println("Key: ", k, "Value: ", v)
 		nodeCount++
 	}
 	

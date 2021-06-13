@@ -3,6 +3,7 @@ package main
 import(
 	"fmt"
 	"sort"
+	//"strconv"
 )
 
 var count int = 0
@@ -11,70 +12,67 @@ var whole int = 0
 var match bool = false
 var done bool = false
 var newNodeCount int
-//var lnds LayerNodes
-//var newNodeTable map[string]string
+var twoInt int = 0
 
 var keyArr []string
 var valArr []string
 var primary string
-
-// type LayerNodes struct{
-// 	LayerNodes []LayerNode `json:"nodes"`
-// }
-
-// type LayerNode struct{
-// 	ID string `json:"id"`
-// 	URL string `json:"url"`
-// }
-
-// func (n nodeTable) sortMe()(arrange []string){
-// 	for a, _ := range nodeTable{
-// 		arrange = append(arrange, a)
-// 	} 
-// 	sort.Strings(arrange)
-// 	return
-// }
 
 //!!bring in nodeID to make the comparison. then send the relevant grouptable back
 func formLayer(nodeTable map[string]string, nodeID string) (map[string]string, string){
 	//have not initialized inner map		    level   group   node 
 	fmt.Println("layering...")
 	fmt.Println("nodeID: ", nodeID)
-	fmt.Println(nodeTable)
+	fmt.Println("current nodetable: ", nodeTable)
 	gnt := make(map[int]map[string]string)
 	lnt := make(map[int]map[int]map[string]string)
 	wnt := make(map[int]map[int]map[int]map[string]string)
 	newNodeTable := make(map[string]string)
-	keys := make([]string, len(nodeTable))
+	//allocating slice for arrangement
+	keys := make([]string, 0)
+	oneDigitKeys := make([]string, 0)
+	twoDigitKeys := make([]string, 0)
 	b := 0  
+	c := 0
+
 	for a:= range nodeTable{
-		keys[b] = a
-		b++
+		//s := "N" + strconv.Itoa(a)
+		if len(a) == 2{
+			oneDigitKeys = append(oneDigitKeys, a)
+			b++
+		} else{
+			twoDigitKeys = append(twoDigitKeys, a)
+			c++
+		}  
 	}
-	sort.Strings(keys)
+	sort.Strings(oneDigitKeys)
+	sort.Strings(twoDigitKeys)
+
+	fmt.Println("oneDigitArrays: ", oneDigitKeys)
+	fmt.Println("twoDigitArrays: ", twoDigitKeys)
+
+	keys = append(keys, oneDigitKeys...)
+	fmt.Println("first append: ", keys)
+	keys = append(keys, twoDigitKeys...)
+
+	fmt.Println("sorted nodetable: ", keys)
 
 	for _, a := range keys{//<-- problem here; ordering issue
-		//fmt.Println("ididid: ", a)
 		if a != "C0"{
 		if count == 0 && !done{
 			newNodeTable = make(map[string]string)
 		}
 		//initialized gnt's inner map
 		gnt[count] = make(map[string]string)
-		//fmt.Println(count)
 		gnt[count][a] = nodeTable[a] 
-		//fmt.Println("breakpoint")
+
 		keyArr = append(keyArr, a)
 		valArr = append(valArr, nodeTable[a])
-		//sort.Strings(keyArr)
-		//sort.Strings(valArr)
-		//fmt.Println("breakpoint2")
-		//fmt.Println(gnt)
+
 		if(a == nodeID){ 
-			//temp := count
 			match = true
 		}
-		//fmt.Println(keyArr)
+		
 		count++
 		if count == 4 {
 			count = 0
