@@ -70,17 +70,24 @@ func signMessage(data []byte, keyBytes []byte) ([]byte, error){
 func (n *Node) verifySignature(data, sig, keyBytes []byte) bool{
 	block, _ := pem.Decode(keyBytes)
 	if block == nil{
-		panic(errors.New("public key error"))
+		//panic(errors.New("public key error"))
+		log.Println("public key error")
 	}
 	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil{
-		panic(err)
+		//panic(err)
+		fmt.Println("here...")
+		log.Panic(err)
+		//log.Println("public key error")
 	}
 
 	hashed := sha256.Sum256(data)
 	err = rsa.VerifyPKCS1v15(pubKey.(*rsa.PublicKey), crypto.SHA256, hashed[:], sig)
 	if err != nil{
-		panic(err)
+		//panic(err)
+		fmt.Println("or here")
+		log.Panic(err)
+		//log.Println("public key error")
 	}
 	return true
 }

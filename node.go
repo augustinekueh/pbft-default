@@ -14,6 +14,7 @@ import(
 //global variables
 var localMessagePool = []Message{}
 var viewID = 0
+var block = 0
 
 type Node struct{
 	nodeID 				string
@@ -33,6 +34,8 @@ type Node struct{
 	msgLog		 		*MsgLog
 	//score				int
 	primary			    string
+	totalPrimaryTable	map[string]string
+	broadcastAddr		string
 }
 
 type MsgLog struct{
@@ -43,7 +46,7 @@ type MsgLog struct{
 }
 
 
-func newNode(nodeID string, addr string, nodeTable map[string]string)*Node{
+func newNode(nodeID string, addr string, nodeTable map[string]string, totalPrimaryTable map[string]string)*Node{
 	n := new(Node)
 	n.nodeID = nodeID
 	n.addr = addr
@@ -67,17 +70,22 @@ func newNode(nodeID string, addr string, nodeTable map[string]string)*Node{
 	}
 	//n.score = 0.5
 	n.primary = ""
+	n.totalPrimaryTable = totalPrimaryTable
+	n.broadcastAddr = ""
 	return n
 }
 
 func (n *Node) Initiate(){
-	hierarchy, primary := formLayer(n.nodeTable, n.nodeID)
+	hierarchy, primary, broadcastAddr := formLayer(n.nodeTable, n.nodeID, n.totalPrimaryTable)
 	fmt.Println("results: ", hierarchy)
 	fmt.Println("primary: ", primary)
+	fmt.Println("broadcastAddr: ", broadcastAddr)
 	n.nodeTable = hierarchy
 	n.primary = primary
+	n.broadcastAddr = broadcastAddr
 	fmt.Println("NodeTable: " , n.nodeTable)
 	fmt.Println("Primary Node: " , n.primary)
+	fmt.Println("Broadcast Address: " , n.broadcastAddr)
 	
 	go n.handleMsg()
 	ln, err := net.Listen("tcp", n.addr)
@@ -114,6 +122,14 @@ func (n *Node) handleMsg(){
 	for{
 		data := <- n.msgQueue 
 		//put here to request latest consensus group
+		//!NEW
+		if block == 0{
+			if n.nodeID == primary{
+				//fmt.Println("primary broadcast: breakpoint")
+				send(data, n.broadcastAddr)
+				block++
+			 }
+		}
 		header, payload, sig := splitMsg(data)
 		switch Header(header){
 		case Request:
@@ -124,6 +140,7 @@ func (n *Node) handleMsg(){
 			n.handlePrepare(payload, sig)
 		case Commit:
 			n.handleCommit(payload, sig)
+			block--
 		}
 	}
 }
@@ -176,15 +193,19 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 	n.msgLog.preprepareLog[prePreparePacket.Digest][n.nodeID] = true
 	n.mutex.Unlock()
 	
-	n.broadcast(message)
+	if n.nodeID != "N1" && n.nodeID != "N2" && n.nodeID != "N3"{
+		n.broadcast(message)
+	}
 	n.sequenceID--
 }
 
 func (n *Node) handlePrePrepare(payload []byte, sig []byte){
 	//create instance of preprepare
-	fmt.Println("breakpoint")
+	//fmt.Println("breakpoint")
+	//fmt.Println("breakpoint2")
 	pp := new(PrePrepareMsg)
 	err := json.Unmarshal(payload, pp)
+	//fmt.Println("preprepare packet: " , payload)
 	if err != nil{
 		log.Panic(err)
 	}
@@ -192,16 +213,19 @@ func (n *Node) handlePrePrepare(payload []byte, sig []byte){
 	primaryNodePubKey := getPubKey(n.primary/*findPrimaryN().ID*/)//at client.go
 	
 	//decode string to byte format for signing
+	//fmt.Println("breakpoint3")
 	digestByte, _ := hex.DecodeString(pp.Digest)
+	//fmt.Println("breakpoint3.5")
 	//set approval conditions
 	if digest := createDigest(pp.Request); hex.EncodeToString(digest[:]) != pp.Digest{
 		fmt.Println("preprepare phase: digest not match, further application rejected!")
 	} else if n.sequenceID+1 != pp.SequenceID{
 		fmt.Println("preprepare phase: incorrect sequence, further application rejected!")
-	} else if !n.verifySignature(digestByte, sig, primaryNodePubKey){
+    } else if !n.verifySignature(digestByte, sig, primaryNodePubKey){//<--error here, suspecting the primaryNodePubKey
 		fmt.Println("preprepare phase: key verification failed, further application rejected!")
 	} else {
 		//success
+		//fmt.Println("breakpoint4")
 		n.sequenceID = pp.SequenceID
 		fmt.Println("preprepare phase: stored into message pool")
 		n.requestPool[pp.Digest] = &pp.Request

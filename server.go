@@ -15,9 +15,9 @@ func nodeIdToPort(nodeId string)string{
 	return nodeId
 }
 
-func newServer(nodeId , addr string, nodeTable map[string]string) *Server{
+func newServer(nodeId , addr string, nodeTable map[string]string, totalPrimaryTable map[string]string) *Server{
 	server := &Server{
-		newNode(string(nodeId), addr, nodeTable),
+		newNode(string(nodeId), addr, nodeTable, totalPrimaryTable),
 		fmt.Sprintf(urlName, nodeIdToPort(nodeId)),
 	}
 	return server

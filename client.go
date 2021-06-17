@@ -6,6 +6,7 @@ import(
 	"io/ioutil"
 	"math/rand"
 	"net"
+	"os"
 	"log"
 	"time"
 )
@@ -141,6 +142,23 @@ func (c* Client) transactionSchedule(ping func(), delay time.Duration)chan bool{
 				c.replyLog = make(map[string]*ReplyMsg) // clear message log
 				duration := time.Since(start) - delay
 				fmt.Printf("Execution time: %v\n", duration)
+				write := fmt.Sprintf("Duaration: %v\n", duration)
+				if !isExist("layer_test_results.txt"){
+					err := ioutil.WriteFile("layer_test_results.txt", []byte(write), 0644)
+					if err != nil{
+						log.Panicf("datalog: error creating file: %s", err)
+					}
+				}
+				f, err :=os.OpenFile("layer_test_results.txt", os.O_APPEND|os.O_WRONLY, 0644)
+				if err != nil{
+					log.Panicf("datalog: error opening file: %s", err)
+				}
+				defer f.Close() 
+
+				if _, err = f.WriteString(write); err != nil{
+					log.Panicf("error recording results: %s", err)
+
+				}
 			case <- stop:
 				return
 			}

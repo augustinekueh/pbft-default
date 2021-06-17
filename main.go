@@ -30,7 +30,7 @@ func Operation(){
 
 	//Retrieve nodes' information from a json file
 	//change the total network nodes based on the numbering json file; i.e. nodes = 4 
-	jsonFile, err := os.Open("node_16.json")
+	jsonFile, err := os.Open("node_128.json")
 
 	if err != nil{
 		fmt.Println(err)
@@ -42,15 +42,26 @@ func Operation(){
 
 	byteValue, _ := ioutil.ReadAll(jsonFile)
 	nodeTable := make(map[string]string)
-	primaryTable := make(map[string]string)
+	lowerPrimaryTable := make(map[string]string)
+	firstPrimaryTable := make(map[string]string)
+	totalPrimaryTable := make(map[string]string)
 	json.Unmarshal(byteValue, &jnodes)
 	count := 0
+	tmpCount := 0
+	flag := 0
 
 	for i:=0; i<len(jnodes.JsonNodes); i++{
 		nodeTable[jnodes.JsonNodes[i].ID] = jnodes.JsonNodes[i].URL
-		if count == 0{
+		if count == 0 || tmpCount <= 3{
 			if jnodes.JsonNodes[i].ID != "C0"{
-				primaryTable[jnodes.JsonNodes[i].ID] = jnodes.JsonNodes[i].URL
+				if flag >= 4{
+					lowerPrimaryTable[jnodes.JsonNodes[i].ID] = jnodes.JsonNodes[i].URL
+				}
+				if tmpCount <= 3{
+					firstPrimaryTable[jnodes.JsonNodes[i].ID] = jnodes.JsonNodes[i].URL
+					tmpCount++
+					flag++
+				}
 			}
 		}
 		count++
@@ -58,13 +69,24 @@ func Operation(){
 			count = 0
 		}
 	}
+	
+	for k, v := range firstPrimaryTable{
+		totalPrimaryTable[k] = v
+	} 
 
-	fmt.Println("Primary Table", primaryTable)
+	for k, v := range lowerPrimaryTable{
+		totalPrimaryTable[k] = v
+	} 
+
 	for k,v := range nodeTable{
 		fmt.Println("Key: ", k, "Value: ", v)
 		nodeCount++
 	}
 	
+	fmt.Println("First Primary Table: ", firstPrimaryTable)
+	fmt.Println("Lower Primary Table: ", lowerPrimaryTable)
+	fmt.Println("Total Primary Table: ", totalPrimaryTable)
+
 	//pre-generate RSA keys; public and private 
 	genKeys(len(jnodes.JsonNodes))
 	
@@ -82,14 +104,14 @@ func Operation(){
 			termID,
 			nodeTable[termID],
 		}
-		client := newClient(termID, addr, primaryTable)
+		client := newClient(termID, addr, firstPrimaryTable)
 		client.Initiate()
 		} else{
 			log.Fatal("connection failed!")
 		}
 	//node
 	} else if addr, ok := nodeTable[termID]; ok{	
-		server := newServer(termID, addr, nodeTable)
+		server := newServer(termID, addr, nodeTable, totalPrimaryTable)
 		server.Initiate()
 	} else {
 		log.Fatal("connection failed!!")
