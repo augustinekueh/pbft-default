@@ -30,7 +30,7 @@ func Operation(){
 
 	//Retrieve nodes' information from a json file
 	//change the total network nodes based on the numbering json file; i.e. nodes = 4 
-	jsonFile, err := os.Open("node_64.json")
+	jsonFile, err := os.Open("node_128.json")
 
 	if err != nil{
 		fmt.Println(err)
