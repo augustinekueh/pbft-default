@@ -43,18 +43,24 @@ func formLayer(nodeTable map[string]string, nodeID string, totalPrimaryTable map
 	twoDigitKeys := make([]string, 0)
 	onePDigitKeys := make([]string, 0)
 	twoPDigitKeys := make([]string, 0)
+	threeDigitKeys := make([]string, 0)
+	threePDigitKeys := make([]string, 0)
 	b := 0  
 	c := 0
+	d := 0
 
 	for a:= range nodeTable{
 		//s := "N" + strconv.Itoa(a)
 		if len(a) == 2{
 			oneDigitKeys = append(oneDigitKeys, a)
 			b++
-		} else{
+		} else if len(a) == 3{
 			twoDigitKeys = append(twoDigitKeys, a)
 			c++
-		}  
+		} else{
+			threeDigitKeys = append(threeDigitKeys, a)
+			d++
+		}
 	}
 
 	for a:= range totalPrimaryTable{
@@ -62,29 +68,37 @@ func formLayer(nodeTable map[string]string, nodeID string, totalPrimaryTable map
 		if len(a) == 2{
 			onePDigitKeys = append(onePDigitKeys, a)
 			b++
-		} else{
+		} else if len(a) == 3{
 			twoPDigitKeys = append(twoPDigitKeys, a)
 			c++
-		}  
+		} else{
+			threePDigitKeys = append(threePDigitKeys, a)
+			d++
+		}
 	}
 
 	sort.Strings(oneDigitKeys)
 	sort.Strings(twoDigitKeys)
+	sort.Strings(threeDigitKeys)
 
 	sort.Strings(onePDigitKeys)
 	sort.Strings(twoPDigitKeys)
+	sort.Strings(threePDigitKeys)
 
 	fmt.Println("oneDigitArrays: ", oneDigitKeys)
 	fmt.Println("twoDigitArrays: ", twoDigitKeys)
+	fmt.Println("threeDigitArrays: ", threeDigitKeys)
 
 	keys = append(keys, oneDigitKeys...)
 	fmt.Println("first append: ", keys)
 	keys = append(keys, twoDigitKeys...)
+	keys = append(keys, threeDigitKeys...)
 
 	//!NEW
 	pkeys = append(pkeys, onePDigitKeys...)
 	fmt.Println("first append: ", pkeys)
 	pkeys = append(pkeys, twoPDigitKeys...)
+	pkeys = append(pkeys, threePDigitKeys...)
 
 	fmt.Println("sorted nodetable: ", keys)
 	fmt.Println("sorted primary table: ", pkeys)
