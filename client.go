@@ -11,7 +11,7 @@ import(
 	"time"
 )
 
-const delay = 5 * time.Second
+const delay = 10 * time.Second
 
 type Client struct{
 	clientID string
@@ -21,6 +21,8 @@ type Client struct{
 	message	 *RequestMsg
 	replyLog map[string]*ReplyMsg
 	primaryTable map[string]string
+	stopFlag int
+	timerFlag chan int
 }
 
 func newClient(clientID string, addr string, primaryTable map[string]string) *Client{
@@ -32,15 +34,14 @@ func newClient(clientID string, addr string, primaryTable map[string]string) *Cl
 	c.message = nil 
 	c.replyLog = make(map[string]*ReplyMsg)
 	c.primaryTable = primaryTable
-
+	c.stopFlag = 0
+	c.timerFlag = make(chan int)
 	return c
 }
 
 func (c *Client) Initiate(){
-	//start := time.Now()
-	//fmt.Println(start)
-	//fmt.Println("breakpoint")
 	ping := func(){
+		c.stopFlag = 0 //to stop the timer later
 		c.sendRequest()}
 	c.transactionSchedule(ping, delay)
 	ln, err := net.Listen("tcp", c.addr)
@@ -55,8 +56,6 @@ func (c *Client) Initiate(){
 		}
 
 		go c.handleConnection(conn)
-		//duration := time.Since(start)
-		//fmt.Printf("Execution time: %v\n", duration)
 	}
 }
 
@@ -95,9 +94,7 @@ func (c *Client) sendRequest(){
 	if err != nil{
 		log.Panic(err)
 	}
-	fmt.Println("breakpoint2")
-	//primaryNode := findPrimaryN()
-	//add mergemsg
+	fmt.Println(c.primaryTable)
 	for _, v := range c.primaryTable{
 		fmt.Println(v)
 		send(mergeMsg(Request, rp, sig), v)
@@ -111,23 +108,20 @@ func (c* Client) handleReply(payload []byte){
 	fmt.Println(rep)
 	c.replyLog[rep.NodeID] = rep
 	rlen := len(c.replyLog)
-	fmt.Println(rlen)
+	fmt.Println("current reply: ", rlen)
 	if err != nil{
 		fmt.Printf("error happened: %d", err)
 		return
 	}
 	if rlen >= countTotalMsgAmount(){
 		fmt.Println("request approved!")
+		if c.stopFlag == 0{
+			//use chan to send a flag to stop the timer
+			c.timerFlag <- 1
+			c.stopFlag = 1
+		}
 	}
 }
-
-// func findPrimaryN() JsonNode{ //need to improve here; probably grab data from the json file (primary nodes) or at main.go.
-// 	var primaryNode JsonNode = JsonNode{
-// 		"N0",
-// 		"127.0.0.1:8080",
-// 	} 
-// 	return primaryNode
-// }
 
 func (c* Client) transactionSchedule(ping func(), delay time.Duration)chan bool{
 	stop := make(chan bool)
@@ -138,9 +132,9 @@ func (c* Client) transactionSchedule(ping func(), delay time.Duration)chan bool{
 			fmt.Println(start)
 			ping()	
 			select{
-			case <- time.After(delay):
+			case <- c.timerFlag:
 				c.replyLog = make(map[string]*ReplyMsg) // clear message log
-				duration := time.Since(start) - delay
+				duration := time.Since(start)
 				fmt.Printf("Execution time: %v\n", duration)
 				write := fmt.Sprintf("Duaration: %v\n", duration)
 				if !isExist("layer_test_results.txt"){
@@ -159,6 +153,7 @@ func (c* Client) transactionSchedule(ping func(), delay time.Duration)chan bool{
 					log.Panicf("error recording results: %s", err)
 
 				}
+				time.Sleep(delay)
 			case <- stop:
 				return
 			}

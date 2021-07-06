@@ -3,24 +3,14 @@ package main
 import(
 	"fmt"
 	"sort"
-	//"strconv"
 )
 
 //NEW LAYER STRUCTURE (PRO VERSION)
-var count int = 0
-var index int = 0
-var whole int = 0
-var match bool = false
-var done bool = false
+//global variables
 var newNodeCount int
-var twoInt int = 0
-
 var keyArr []string
 var valArr []string
 var primary string
-var assignFlag bool = false
-var indexPosition int = 0
-var indexPrimary int = 0 
 var broadcastAddr string 
 
 //!!bring in nodeID to make the comparison. then send the relevant grouptable back
@@ -29,9 +19,6 @@ func formLayer(nodeTable map[string]string, nodeID string, totalPrimaryTable map
 	fmt.Println("layering...")
 	fmt.Println("nodeID: ", nodeID)
 	fmt.Println("current nodetable: ", nodeTable)
-	gnt := make(map[int]map[string]string)
-	lnt := make(map[int]map[int]map[string]string)
-	wnt := make(map[int]map[int]map[int]map[string]string)
 	newNodeTable := make(map[string]string)
 	//NEW!
 	indexTotalPrimaryTable := make(map[int]string)
@@ -45,12 +32,20 @@ func formLayer(nodeTable map[string]string, nodeID string, totalPrimaryTable map
 	twoPDigitKeys := make([]string, 0)
 	threeDigitKeys := make([]string, 0)
 	threePDigitKeys := make([]string, 0)
+
 	b := 0  
 	c := 0
 	d := 0
 
+	count := 0
+	indexPosition := 0
+	indexPrimary  := 0 
+
+	match := false
+	done  := false
+	assignFlag := false
+
 	for a:= range nodeTable{
-		//s := "N" + strconv.Itoa(a)
 		if len(a) == 2{
 			oneDigitKeys = append(oneDigitKeys, a)
 			b++
@@ -64,7 +59,6 @@ func formLayer(nodeTable map[string]string, nodeID string, totalPrimaryTable map
 	}
 
 	for a:= range totalPrimaryTable{
-		//s := "N" + strconv.Itoa(a)
 		if len(a) == 2{
 			onePDigitKeys = append(onePDigitKeys, a)
 			b++
@@ -108,14 +102,11 @@ func formLayer(nodeTable map[string]string, nodeID string, totalPrimaryTable map
 		indexPrimary++
 	}
 
-	for _, a := range keys{//<-- problem here; ordering issue
+	for _, a := range keys{
 		if a != "C0"{
 		if count == 0 && !done{
 			newNodeTable = make(map[string]string)
 		}
-		//initialized gnt's inner map
-		gnt[count] = make(map[string]string)
-		gnt[count][a] = nodeTable[a] 
 
 		keyArr = append(keyArr, a)
 		valArr = append(valArr, nodeTable[a])
@@ -127,22 +118,10 @@ func formLayer(nodeTable map[string]string, nodeID string, totalPrimaryTable map
 		count++
 		if count == 4 {
 			count = 0
-			//newNodeTable := make(map[string]string)
-			lnt[index] = make(map[int]map[string]string)
-			lnt[index] = gnt
-			index++
-			if(match){//problem if add more than 4 nodes
-				//fmt.Println("breakpoint3")
+			if(match){
 				for p := 0; p <= 3; p++{
-					//fmt.Println(keyArr[p])//arrangement got problem, probably need to do sorting
 					newNodeTable[keyArr[p]] = valArr[p]
 					newNodeCount++
-					//for fixing the broadcasting (preprepare packet) of top-level primary nodes, but currently not much use
-					// if assignFlag == false{
-					// 	primary = nodeID
-					// } else{
-					// 	primary = keyArr[0]
-					// }
 					primary = keyArr[0]
 					done = true
 					match = false 
@@ -160,12 +139,6 @@ func formLayer(nodeTable map[string]string, nodeID string, totalPrimaryTable map
 			keyArr = nil
 			valArr = nil
 			assignFlag = true
-		} 
-		if index == 4 {
-			index = 0
-			wnt[whole] = make(map[int]map[int]map[string]string)
-			wnt[whole] = lnt
-			whole++
 		} 
 	}
 }

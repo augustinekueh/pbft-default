@@ -10,7 +10,6 @@ import (
 
 //global variables
 var nodeCount int
-//var nodeTable map[string]string
 var jnodes *JsonNodes
 var ClientNode *JsonNode
 
@@ -52,12 +51,12 @@ func Operation(){
 
 	for i:=0; i<len(jnodes.JsonNodes); i++{
 		nodeTable[jnodes.JsonNodes[i].ID] = jnodes.JsonNodes[i].URL
-		if count == 0 || tmpCount <= 3{
+		if count == 0 || tmpCount <= 3{//update (3/7) change to 7 from 3
 			if jnodes.JsonNodes[i].ID != "C0"{
-				if flag >= 4{
+				if flag >= 4{ //change to 8 from 4
 					lowerPrimaryTable[jnodes.JsonNodes[i].ID] = jnodes.JsonNodes[i].URL
 				}
-				if tmpCount <= 3{
+				if tmpCount <= 3{//change to 7 from 3
 					firstPrimaryTable[jnodes.JsonNodes[i].ID] = jnodes.JsonNodes[i].URL
 					tmpCount++
 					flag++
@@ -65,7 +64,7 @@ func Operation(){
 			}
 		}
 		count++
-		if count == 4{//change to determine number of primary nodes; now is only 1 if run the node_8.json
+		if count == 4{//change to determine number of primary nodes
 			count = 0
 		}
 	}
@@ -99,7 +98,6 @@ func Operation(){
 	//client
 	if termID == "C0"{
 		if addr, ok := nodeTable[termID]; ok{
-		//fmt.Println(addr)
 		ClientNode = &JsonNode{
 			termID,
 			nodeTable[termID],

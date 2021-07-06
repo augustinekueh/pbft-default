@@ -1,1 +1,1 @@
-start "client" /min cmd /k "pbft-default.exe C0"
+start "client" /min cmd /k "pbft-default-layer.exe C0"

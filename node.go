@@ -7,6 +7,8 @@ import(
 	"io/ioutil"
 	"log"
 	"net"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
@@ -14,7 +16,7 @@ import(
 //global variables
 var localMessagePool = []Message{}
 var viewID = 0
-var block = 0
+var nodeDelay = 200 * time.Millisecond
 
 type Node struct{
 	nodeID 				string
@@ -32,10 +34,11 @@ type Node struct{
 	isCommitBroadcast	map[string]bool
 	isReply				map[string]bool
 	msgLog		 		*MsgLog
-	//score				int
 	primary			    string
 	totalPrimaryTable	map[string]string
 	broadcastAddr		string
+	block				int
+	vicePrimary			string
 }
 
 type MsgLog struct{
@@ -68,10 +71,11 @@ func newNode(nodeID string, addr string, nodeTable map[string]string, totalPrima
 		make(map[string]map[string]bool),
 		make(map[string]bool),
 	}
-	//n.score = 0.5
 	n.primary = ""
 	n.totalPrimaryTable = totalPrimaryTable
 	n.broadcastAddr = ""
+	n.block = 0
+	n.vicePrimary = ""
 	return n
 }
 
@@ -86,6 +90,10 @@ func (n *Node) Initiate(){
 	fmt.Println("NodeTable: " , n.nodeTable)
 	fmt.Println("Primary Node: " , n.primary)
 	fmt.Println("Broadcast Address: " , n.broadcastAddr)
+
+	if n.nodeID == "N1" || n.nodeID == "N2" || n.nodeID == "N3" {//(3/7) add N4-N7
+		n.vicePrimary = n.nodeID
+	}
 	
 	go n.handleMsg()
 	ln, err := net.Listen("tcp", n.addr)
@@ -112,8 +120,10 @@ func (n* Node) handleConnection(conn net.Conn){
 }
 
 func (n *Node) addSID() int{
+	n.mutex.Lock()
 	seq := n.sequenceID
 	n.sequenceID++
+	n.mutex.Unlock()
 	return seq
 }
 
@@ -121,13 +131,14 @@ func (n *Node) addSID() int{
 func (n *Node) handleMsg(){
 	for{
 		data := <- n.msgQueue 
-		//put here to request latest consensus group
 		//!NEW
-		if block == 0{
-			if n.nodeID == primary{
-				//fmt.Println("primary broadcast: breakpoint")
-				send(data, n.broadcastAddr)
-				block++
+		if n.block == 0{
+			if n.nodeID == primary || n.nodeID == n.vicePrimary{
+				//NEW! (20/6)
+				if n.broadcastAddr != ""{
+					send(data, n.broadcastAddr)
+				}
+				n.block = 1
 			 }
 		}
 		header, payload, sig := splitMsg(data)
@@ -140,7 +151,7 @@ func (n *Node) handleMsg(){
 			n.handlePrepare(payload, sig)
 		case Commit:
 			n.handleCommit(payload, sig)
-			block--
+			n.block = 0
 		}
 	}
 }
@@ -158,7 +169,7 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 	digestmsg := generateDigest(r.CMessage.Request)
 	//verify digest
 	vdig := verifyDigest(digestmsg, r.CMessage.Digest)
-	fmt.Println(vdig)
+	fmt.Println("verifydigest: ", vdig)
 	if vdig == false{
 		fmt.Printf("verify digest failed\n")
 		return
@@ -177,8 +188,10 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 		viewID,
 		n.sequenceID,
 		strDigest,
-	} 
-	
+		n.nodeID,
+	}
+	fmt.Println("sequenceID:(primary) " , n.sequenceID)
+	//seq--
 	//convert struct to json format
 	done, err := json.Marshal(prePreparePacket)
 	if err != nil{
@@ -187,45 +200,57 @@ func (n *Node) handleRequest(payload []byte, sig []byte){
 	message := mergeMsg(PrePrepare, done, signature)
 	n.mutex.Lock()
 	//put preprepare msg into preprepare log
+	
 	if n.msgLog.preprepareLog[prePreparePacket.Digest] == nil{
 		n.msgLog.preprepareLog[prePreparePacket.Digest] = make(map[string]bool)
 	}
 	n.msgLog.preprepareLog[prePreparePacket.Digest][n.nodeID] = true
-	n.mutex.Unlock()
 	
-	if n.nodeID != "N1" && n.nodeID != "N2" && n.nodeID != "N3"{
+	n.mutex.Unlock()
+	//update(3/7)
+	if n.nodeID != "N1" && n.nodeID != "N2" && n.nodeID != "N3" {
+		fmt.Println("broadcasting (pre-prepare) message..")
 		n.broadcast(message)
 	}
 	n.sequenceID--
 }
 
 func (n *Node) handlePrePrepare(payload []byte, sig []byte){
+	//update(23/6)
+	if !isExist("./Penalties"){
+		err := os.Mkdir("./Penalties", 0700)
+		if err != nil{
+			log.Panic(err)
+		}
+	}
 	//create instance of preprepare
-	//fmt.Println("breakpoint")
-	//fmt.Println("breakpoint2")
 	pp := new(PrePrepareMsg)
 	err := json.Unmarshal(payload, pp)
-	//fmt.Println("preprepare packet: " , payload)
 	if err != nil{
 		log.Panic(err)
 	}
 	//get primary node's public key for verification
-	primaryNodePubKey := getPubKey(n.primary/*findPrimaryN().ID*/)//at client.go
+	primaryNodePubKey := getPubKey(n.primary)
 	
 	//decode string to byte format for signing
-	//fmt.Println("breakpoint3")
 	digestByte, _ := hex.DecodeString(pp.Digest)
-	//fmt.Println("breakpoint3.5")
 	//set approval conditions
+	
 	if digest := createDigest(pp.Request); hex.EncodeToString(digest[:]) != pp.Digest{
-		fmt.Println("preprepare phase: digest not match, further application rejected!")
+		//add penalty
+		note := fmt.Sprintf("preprepare phase: digest (%s) not match, further application rejected!\n", pp.NodeID)
+		n.recordPenalties(note)
 	} else if n.sequenceID+1 != pp.SequenceID{
-		fmt.Println("preprepare phase: incorrect sequence, further application rejected!")
-    } else if !n.verifySignature(digestByte, sig, primaryNodePubKey){//<--error here, suspecting the primaryNodePubKey
-		fmt.Println("preprepare phase: key verification failed, further application rejected!")
+		//add penalty	
+		note := fmt.Sprintf("preprepare phase: incorrect sequence (%d)(%d)(%s), further application rejected!\n", n.sequenceID+1, pp.SequenceID, pp.NodeID)
+		n.recordPenalties(note)
+    } else if !n.verifySignature(digestByte, sig, primaryNodePubKey){
+		//add penalty
+		note := fmt.Sprintf("preprepare phase: key verification (%s) failed, further application rejected!\n", pp.NodeID)
+		n.recordPenalties(note)
 	} else {
 		//success
-		//fmt.Println("breakpoint4")
+		fmt.Println("sequenceID: ", n.sequenceID)
 		n.sequenceID = pp.SequenceID
 		fmt.Println("preprepare phase: stored into message pool")
 		n.requestPool[pp.Digest] = &pp.Request
@@ -251,13 +276,14 @@ func (n *Node) handlePrePrepare(payload []byte, sig []byte){
 		} 
 		n.msgLog.prepareLog[preparePacket.Digest][n.nodeID] = true
 		n.mutex.Unlock()
-		
+		fmt.Println("broadcasting (prepare) message..")
+		//update (30/6)
+		time.Sleep(nodeDelay)
 		n.broadcast(message)
 	}
 }
 
 func (n *Node) handlePrepare(payload []byte, sig []byte){
-	fmt.Println("breakpoint2")
 	pre := new(PrepareMsg)
 	err := json.Unmarshal(payload, pre)
 	if err != nil{
@@ -266,12 +292,26 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 	msgNodePubKey := getPubKey(pre.NodeID)
 	//decode string to byte format 
 	digestByte, _ := hex.DecodeString(pre.Digest)
+	// if n.nodeID == n.primary || n.nodeID == n.vicePrimary{
+	// 	n.sequenceID++
+	// }
+	fmt.Println("prepare request pool(pre-): ", n.requestPool[pre.Digest], "nodeID: ", pre.NodeID)
 	if _, ok := n.requestPool[pre.Digest]; !ok{
-		fmt.Println("prepare phase: unable to retrieve digest, further application rejected!")
+		//add penalty
+		note := fmt.Sprintf("prepare phase: unable to retrieve (%s) digest, further application rejected!\n", pre.NodeID)
+		fmt.Println("prepare request pool: ", n.requestPool[pre.Digest])
+		n.recordPenalties(note)
 	} else if n.sequenceID != pre.SequenceID{
-		fmt.Println("prepare phase: incorrect sequence, further application rejected!")
+		//add penalty
+		//update(24/6)
+		if n.nodeID != n.primary && n.nodeID != n.vicePrimary{
+			note := fmt.Sprintf("prepare phase: incorrect sequence (%s)(current sequenceID: %d)(received sequenceID: %d), further application rejected!\n", pre.NodeID, n.sequenceID, pre.SequenceID)
+			n.recordPenalties(note)
+		}
 	} else if !n.verifySignature(digestByte, sig, msgNodePubKey){
-		fmt.Println("prepare phase: key verification failed, further application rejected!")
+		//add penalty
+		note := fmt.Sprintf("prepare phase: key verification (%s) failed, further application rejected!\n", pre.NodeID)
+		n.recordPenalties(note)
 	} else{
 		//success
 		n.setPrepareConfirmMap(pre.Digest, pre.NodeID, true)
@@ -313,7 +353,8 @@ func (n *Node) handlePrepare(payload []byte, sig []byte){
 			}
 			n.msgLog.commitLog[c.Digest][n.nodeID] = true
 			n.mutex.Unlock()
-			
+
+			time.Sleep(nodeDelay)
 			n.broadcast(message)
 			n.isCommitBroadcast[pre.Digest] = true
 			fmt.Println("committed successfully")
@@ -332,11 +373,17 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 	digestByte, _ := hex.DecodeString(cmt.Digest)
 
 	if _, ok := n.prepareConfirmCount[cmt.Digest]; !ok{
-		fmt.Println("commit phase: unable to retrive digest, further application rejected")
+		note := fmt.Sprintf("commit phase: unable to retrieve (%s) digest, further application rejected\n", cmt.NodeID)
+		n.recordPenalties(note)
+		//add penalty
 	} else if n.sequenceID != cmt.SequenceID{
-		fmt.Println("commit phase: incorrect sequence, further application rejected!")
+		note := fmt.Sprintf("commit phase: incorrect sequence (%s), further application rejected!\n", cmt.NodeID)
+		n.recordPenalties(note)
+		//add penalty
 	} else if !n.verifySignature(digestByte, sig, msgNodePubKey){
-		fmt.Println("commit phase: key verification failed, further application rejected!")
+		note := fmt.Sprintf("commit phase: key verification (%s) failed, further application rejected!\n", cmt.NodeID)
+		n.recordPenalties(note)
+		//add penalty
 	} else{
 		n.setCommitConfirmMap(cmt.Digest, cmt.NodeID, true)
 		count := 0
@@ -359,7 +406,7 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 				"success",
 			}
 
-			fmt.Println(d)
+			fmt.Println("reply message: ", d)
 			done, err := json.Marshal(d)
 			if err != nil{
 				log.Panic(err)
@@ -370,18 +417,6 @@ func (n *Node) handleCommit(payload []byte, sig []byte){
 			send(message, n.requestPool[cmt.Digest].CAddr)
 			n.isReply[cmt.Digest] = true
 			fmt.Println("successfully replied!")
-
-			//GROUP ALGORITHM
-			//put here to submit report card to the moderator to calculate node trust
-			//unt := updateNodeTable(n.nodeTable)
-			//nil the nodeTable and initialize to unt
-			//n.nodeTable = make(map[string]string)
-			//n.nodeTable = unt
-
-			//LAYER ALGORITHM -- probably should be at the beginning of the phase
-			//hierarchy := formLayer(n.nodeTable, n.nodeID)
-			//fmt.Println("results: ", hierarchy)
-			//n.nodeTable = hierarchy
 		}
 		n.mutex.Unlock()
 	}
@@ -423,8 +458,8 @@ func (n* Node) reply(data []byte, cliaddr string){
 func (n *Node) setPrepareConfirmMap(x, y string, b bool){
 	if _, ok := n.prepareConfirmCount[x]; !ok{
 		n.prepareConfirmCount[x] = make(map[string]bool)
-		fmt.Println(x)
-		fmt.Println(y)
+		fmt.Println("prepareConfirmCount(x): ", x)
+		fmt.Println("prepareConfirmCount(y): ", y)
 	}
 	n.prepareConfirmCount[x][y] = b
 }
@@ -436,11 +471,28 @@ func (n *Node) setCommitConfirmMap(x, y string, b bool){
 	n.commitConfirmCount[x][y] = b
 }
 
-//major problem here
-func findPrimaryN() JsonNode{ //need to improve here; probably grab data from the json file (primary nodes) or at main.go.
- 	var primaryNode JsonNode = JsonNode{
- 		"N0",
- 		"127.0.0.1:8080",
- 	} 
- 	return primaryNode
+ //update(23/6)
+ func (n *Node) recordPenalties(s string){
+	oflag := 0
+	filename, _ := filepath.Abs(fmt.Sprintf("./Penalties/%s", n.nodeID))
+	write := fmt.Sprintf(s)
+	if !isExist(filename + "_penalty"){
+		err := ioutil.WriteFile(filename + "_penalty", []byte(write), 0644)
+		oflag = 1
+		if err != nil{
+			log.Panicf("penalty log: error creating file: %s", err)
+		}
+	}
+	f, err :=os.OpenFile(filename + "_penalty", os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil{
+		log.Panicf("penalty log: error opening file: %s", err)
+	}
+	defer f.Close() 
+
+	if oflag != 1{
+		if _, err = f.WriteString(write); err != nil{
+			log.Panicf("error recording results: %s", err)
+		}
+	}
+	oflag = 0
  }

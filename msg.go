@@ -26,17 +26,16 @@ type RequestMsg struct{
 	ClientID	string  `json:"clientID"`
 	CMessage	Message `json:"clientmessage"`
 	CAddr		string	`json:"clientaddress"`
-	//Signature 	[]byte  `json:"signature"`
 }
 
 //<PREPREPARE, v, n, d> with digital signature, σ, m>
-//According to the original paper, client requests are not included in pre-prepare packets to keep them small
 type PrePrepareMsg struct{
 	Request		RequestMsg	`json:"Request"`
 	View 		int 		`json:"view"`
 	SequenceID	int 		`json:"sequenceID"`
 	//digest for message, m
 	Digest		string		`json:"digest"`
+	NodeID		string		`json:"nodeID"`
 }
 
 //<PREPARE, v, n, d, i> with digital signature, σ

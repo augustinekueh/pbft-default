@@ -16,7 +16,6 @@ import(
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
 )
 
 func createDigest(request RequestMsg) []byte{
@@ -70,24 +69,17 @@ func signMessage(data []byte, keyBytes []byte) ([]byte, error){
 func (n *Node) verifySignature(data, sig, keyBytes []byte) bool{
 	block, _ := pem.Decode(keyBytes)
 	if block == nil{
-		//panic(errors.New("public key error"))
 		log.Println("public key error")
 	}
 	pubKey, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil{
-		//panic(err)
-		fmt.Println("here...")
 		log.Panic(err)
-		//log.Println("public key error")
 	}
 
 	hashed := sha256.Sum256(data)
 	err = rsa.VerifyPKCS1v15(pubKey.(*rsa.PublicKey), crypto.SHA256, hashed[:], sig)
 	if err != nil{
-		//panic(err)
-		fmt.Println("or here")
 		log.Panic(err)
-		//log.Println("public key error")
 	}
 	return true
 }
@@ -216,24 +208,4 @@ func isExist(path string) bool{
 		return false
 	}
 	return true
-}
-
-func updateNodeTable(nodeTable map[string]string)map[string]string{
-	fmt.Println("calculating node trust...")
-
-	consensusTable := make(map[string]string)
-	for k, v := range nodeTable{
-		if k != "C0"{
-			strnum := string(k[1:])
-			if num, err := strconv.Atoi(strnum); err == nil{
-				fmt.Printf("Consensus Nodes: N%d\n", num)
-				if num % 2 == 0{
-					consensusTable[k] = v
-				} 
-			} else{
-				log.Panic(err)
-			}
-		}
-	}
-	return consensusTable
 }

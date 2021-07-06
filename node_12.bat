@@ -10,7 +10,4 @@ start "node 9" /min cmd /k "pbft-default-layer.exe N8"
 start "node 10" /min cmd /k "pbft-default-layer.exe N9"
 start "node 11" /min cmd /k "pbft-default-layer.exe N10"
 start "node 12" /min cmd /k "pbft-default-layer.exe N11"
-start "node 13" /min cmd /k "pbft-default-layer.exe N12"
-start "node 14" /min cmd /k "pbft-default-layer.exe N13"
-start "node 15" /min cmd /k "pbft-default-layer.exe N14"
-start "node 16" /min cmd /k "pbft-default-layer.exe N15"
+
